@@ -39,6 +39,7 @@ test("live health returns 200 and a request ID", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(body.status, "alive");
+  assert.equal(response.headers.get("cache-control"), "no-store");
   assert.match(response.headers.get("x-request-id"), /^[0-9a-f-]{36}$/);
 });
 
