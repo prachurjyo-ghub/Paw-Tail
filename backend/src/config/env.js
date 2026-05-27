@@ -1,5 +1,5 @@
 const VALID_NODE_ENVS = new Set(["development", "test", "production"]);
-const DURATION_PATTERN = /^\d+(?:s|m|h|d)$/i;
+const DURATION_PATTERN = /^[1-9]\d*(?:s|m|h|d)$/i;
 
 const readString = (name, { required = false, fallback } = {}) => {
   const value = process.env[name]?.trim() || fallback;
