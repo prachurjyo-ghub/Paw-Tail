@@ -135,6 +135,10 @@ const readUrlList = (name, { requireHttps = false } = {}) => {
       throw new Error(`${temporaryName} must use http or https`);
     }
 
+    if (parsed.username || parsed.password) {
+      throw new Error(`${temporaryName} must not include credentials`);
+    }
+
     if (requireHttps && parsed.protocol !== "https:") {
       throw new Error(`${temporaryName} must use https in production`);
     }
