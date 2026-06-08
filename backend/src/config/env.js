@@ -94,6 +94,10 @@ const readUrl = (
     throw new Error(`${name} must use http or https`);
   }
 
+  if (parsed.username || parsed.password) {
+    throw new Error(`${name} must not include credentials`);
+  }
+
   if (requireHttps && parsed.protocol !== "https:") {
     throw new Error(`${name} must use https in production`);
   }
