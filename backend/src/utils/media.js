@@ -17,11 +17,11 @@ const getMediaTokens = (media) => {
 
 const parseMediaTokens = (value) => {
   if (Array.isArray(value)) {
-    return value
+    return [...new Set(value
       .flatMap((item) =>
         typeof item === "string" ? [item.trim()] : getMediaTokens(item)
       )
-      .filter(Boolean);
+      .filter(Boolean))];
   }
 
   if (typeof value !== "string" || !value.trim()) {
@@ -37,10 +37,10 @@ const parseMediaTokens = (value) => {
     }
   }
 
-  return trimmed
+  return [...new Set(trimmed
     .split(",")
     .map((item) => item.trim())
-    .filter(Boolean);
+    .filter(Boolean))];
 };
 
 const selectOwnedMedia = (currentMedia, requestedTokens) => {

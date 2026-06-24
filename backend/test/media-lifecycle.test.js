@@ -11,7 +11,7 @@ const {
   persistUploadedMedia,
   replaceSingleMedia,
 } = require("../src/services/mediaService");
-const { selectOwnedMedia } = require("../src/utils/media");
+const { parseMediaTokens, selectOwnedMedia } = require("../src/utils/media");
 
 const oldMedia = {
   secureUrl: "https://res.cloudinary.com/demo/image/upload/old.jpg",
@@ -202,4 +202,8 @@ test("retained media tokens can only select assets owned by the record", () => {
   );
 
   assert.deepEqual(selected, [oldMedia]);
+});
+
+test("media token parsing removes duplicate values", () => {
+  assert.deepEqual(parseMediaTokens("one, two, one"), ["one", "two"]);
 });
