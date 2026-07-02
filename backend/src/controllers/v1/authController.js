@@ -1,3 +1,5 @@
+const { randomInt } = require("crypto");
+
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
@@ -11,7 +13,7 @@ const { cleanupOldMedia } = require("../../utils/media");
 
 // Utility functions
 const generateVerificationCode = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return randomInt(100000, 1000000).toString();
 };
 
 const parseDurationToMs = (duration, fallbackMs) => {
