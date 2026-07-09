@@ -1,3 +1,5 @@
+const { randomBytes } = require("crypto");
+
 const mongoose = require("mongoose");
 
 const Order = require("../../models/Order");
@@ -299,7 +301,7 @@ const reduceStockForItems = async ({ productsById, items, session }) => {
 const generateOrderNumber = async (session) => {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const timestamp = Date.now().toString(36).toUpperCase();
-    const random = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const random = randomBytes(4).toString("hex").toUpperCase();
     const orderNumber = `ORD-${timestamp}-${random}`;
     const existingOrder = await Order.findOne({ orderNumber })
       .setOptions({
