@@ -93,6 +93,12 @@ const normalizePositiveInteger = (value, fallback, max = Infinity) => {
   return Math.min(max, Math.max(1, Math.floor(parsed)));
 };
 
+const normalizeNonNegativeNumber = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+};
+
 const resolveCategoryRef = async (value) => {
   if (value === undefined || value === null) return null;
 
@@ -200,10 +206,13 @@ const getProducts = async (req, res, next) => {
       query.brand = matchedBrand?._id || null;
     }
 
-    if (minPrice || maxPrice) {
+    const normalizedMinPrice = normalizeNonNegativeNumber(minPrice);
+    const normalizedMaxPrice = normalizeNonNegativeNumber(maxPrice);
+
+    if (normalizedMinPrice !== null || normalizedMaxPrice !== null) {
       query.price = {};
-      if (minPrice) query.price.$gte = Number(minPrice);
-      if (maxPrice) query.price.$lte = Number(maxPrice);
+      if (normalizedMinPrice !== null) query.price.$gte = normalizedMinPrice;
+      if (normalizedMaxPrice !== null) query.price.$lte = normalizedMaxPrice;
     }
 
     const activeFilter = parseBoolean(isActive);
