@@ -19,7 +19,13 @@ const deleteImageFile = (imagePath, folderName) => {
     filePath.startsWith(`${uploadsRoot}${path.sep}`) &&
     fs.existsSync(filePath)
   ) {
-    fs.unlinkSync(filePath);
+    try {
+      fs.unlinkSync(filePath);
+    } catch (error) {
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
+    }
   }
 };
 
