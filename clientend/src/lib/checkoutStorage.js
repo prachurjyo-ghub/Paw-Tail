@@ -1,4 +1,16 @@
 const CHECKOUT_PREFS_KEY = "pawtail-checkout-prefs";
+const DEFAULT_CHECKOUT_PREFS = {
+  promoCode: "",
+  deliveryZone: "inside-dhaka",
+};
+const DELIVERY_ZONES = new Set(["inside-dhaka", "outside-dhaka"]);
+
+const normalizeCheckoutPrefs = (value) => ({
+  promoCode: typeof value?.promoCode === "string" ? value.promoCode.trim() : "",
+  deliveryZone: DELIVERY_ZONES.has(value?.deliveryZone)
+    ? value.deliveryZone
+    : DEFAULT_CHECKOUT_PREFS.deliveryZone,
+});
 
 const getSessionStorage = () => {
   try {
@@ -13,21 +25,18 @@ export const saveCheckoutPrefs = ({ promoCode = "", deliveryZone = "inside-dhaka
   if (!storage) return;
   storage.setItem(
     CHECKOUT_PREFS_KEY,
-    JSON.stringify({ promoCode, deliveryZone })
+    JSON.stringify(normalizeCheckoutPrefs({ promoCode, deliveryZone }))
   );
 };
 
 export const readCheckoutPrefs = () => {
   try {
     const storage = getSessionStorage();
-    if (!storage) return { promoCode: "", deliveryZone: "inside-dhaka" };
+    if (!storage) return { ...DEFAULT_CHECKOUT_PREFS };
     const stored = JSON.parse(storage.getItem(CHECKOUT_PREFS_KEY) || "{}");
-    return {
-      promoCode: stored.promoCode || "",
-      deliveryZone: stored.deliveryZone || "inside-dhaka",
-    };
+    return normalizeCheckoutPrefs(stored);
   } catch {
-    return { promoCode: "", deliveryZone: "inside-dhaka" };
+    return { ...DEFAULT_CHECKOUT_PREFS };
   }
 };
 
