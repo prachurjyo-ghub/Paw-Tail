@@ -1,12 +1,22 @@
 const GUEST_CART_KEY = "pawtail-guest-cart";
 const GUEST_WISHLIST_KEY = "pawtail-wishlist";
 
+const getLocalStorage = () => {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+};
+
 export const getGuestCartLineKey = (productId, variantId) =>
   `${productId}:${variantId || "default"}`;
 
 export const readGuestCartItems = () => {
   try {
-    const stored = JSON.parse(localStorage.getItem(GUEST_CART_KEY) || "[]");
+    const storage = getLocalStorage();
+    if (!storage) return [];
+    const stored = JSON.parse(storage.getItem(GUEST_CART_KEY) || "[]");
     return Array.isArray(stored) ? stored : [];
   } catch {
     return [];
@@ -23,7 +33,9 @@ export const clearGuestCartItems = () => {
 
 export const readGuestWishlistItems = () => {
   try {
-    const stored = JSON.parse(localStorage.getItem(GUEST_WISHLIST_KEY) || "[]");
+    const storage = getLocalStorage();
+    if (!storage) return [];
+    const stored = JSON.parse(storage.getItem(GUEST_WISHLIST_KEY) || "[]");
     return Array.isArray(stored) ? stored : [];
   } catch {
     return [];
