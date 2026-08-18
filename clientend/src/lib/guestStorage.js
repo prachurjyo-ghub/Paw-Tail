@@ -24,11 +24,13 @@ export const readGuestCartItems = () => {
 };
 
 export const writeGuestCartItems = (items) => {
-  localStorage.setItem(GUEST_CART_KEY, JSON.stringify(items));
+  const storage = getLocalStorage();
+  if (!storage) return;
+  storage.setItem(GUEST_CART_KEY, JSON.stringify(Array.isArray(items) ? items : []));
 };
 
 export const clearGuestCartItems = () => {
-  localStorage.removeItem(GUEST_CART_KEY);
+  getLocalStorage()?.removeItem(GUEST_CART_KEY);
 };
 
 export const readGuestWishlistItems = () => {
@@ -43,11 +45,16 @@ export const readGuestWishlistItems = () => {
 };
 
 export const writeGuestWishlistItems = (items) => {
-  localStorage.setItem(GUEST_WISHLIST_KEY, JSON.stringify(items));
+  const storage = getLocalStorage();
+  if (!storage) return;
+  storage.setItem(
+    GUEST_WISHLIST_KEY,
+    JSON.stringify(Array.isArray(items) ? items : [])
+  );
 };
 
 export const clearGuestWishlistItems = () => {
-  localStorage.removeItem(GUEST_WISHLIST_KEY);
+  getLocalStorage()?.removeItem(GUEST_WISHLIST_KEY);
 };
 
 export const buildGuestCartItem = (product, variant, quantity) => {
