@@ -34,7 +34,12 @@ export function loadAdminSession() {
       return DEFAULT_ADMIN_PROFILE;
     }
 
-    return { ...DEFAULT_ADMIN_PROFILE, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return DEFAULT_ADMIN_PROFILE;
+    }
+
+    return { ...DEFAULT_ADMIN_PROFILE, ...parsed };
   } catch {
     return DEFAULT_ADMIN_PROFILE;
   }
