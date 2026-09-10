@@ -24,11 +24,13 @@ async function fetchAdminJson(path, options = {}) {
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       credentials: "include",
+      ...options,
       headers: {
-        "Content-Type": "application/json",
+        ...(options.body !== undefined && !(options.body instanceof FormData)
+          ? { "Content-Type": "application/json" }
+          : {}),
         ...(options.headers || {}),
       },
-      ...options,
       signal: options.signal || controller.signal,
     });
   } catch (error) {
