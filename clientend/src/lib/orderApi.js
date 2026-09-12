@@ -48,7 +48,7 @@ export async function getMyOrdersFromApi() {
     credentials: "include",
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
-  const data = await response.json();
+  const data = await response.json().catch(() => ({}));
 
   if (!response.ok || !data.success) {
     throw new Error(data.message || "Failed to load orders");
