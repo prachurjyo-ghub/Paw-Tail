@@ -1,5 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import AppProviders from "@/components/AppProviders";
+import BoneCursorEffects from "@/components/BoneCursorEffects";
 import Footer from "@/components/Footer";
 import Header from "@/layout/Header";
 import { AuthProvider } from "@/context/AuthContext";
@@ -29,6 +30,7 @@ export default function RootLayout({ children }) {
       <body className="min-h-full flex flex-col">
         <AuthProvider>
           <AppProviders>
+            <BoneCursorEffects />
             <Header />
             <div className="flex-1">{children}</div>
             <Footer />

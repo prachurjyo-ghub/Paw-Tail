@@ -21,11 +21,11 @@ import {
   HiOutlineTrash,
   HiOutlineUser,
 } from "react-icons/hi2";
-import { PiPawPrintFill } from "react-icons/pi";
 
 import ChangePasswordPopover from "@/components/ChangePasswordPopover";
 import Container from "@/components/Container";
 import DeleteAccountPopover from "@/components/DeleteAccountPopover";
+import PawPrintIcon from "@/components/icons/PawPrintIcon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWishlist } from "@/components/WishlistProvider";
 import { useAuth } from "@/context/AuthContext";
@@ -74,6 +74,9 @@ export default function ProfilePage() {
   useEffect(() => {
     if (loaded && !user) {
       router.replace("/");
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("pawtail:open-login"));
+      }, 0);
     }
   }, [loaded, user, router]);
 
@@ -90,10 +93,6 @@ export default function ProfilePage() {
       setDataLoading(false);
     }
   }, [user]);
-
-  useEffect(() => {
-    refreshProfileData();
-  }, [refreshProfileData]);
 
   useEffect(() => {
     if (active !== "orders" && active !== "overview") return;
@@ -1378,7 +1377,7 @@ function Wishlist({ items, isLoading, onRemove }) {
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <PiPawPrintFill className="text-4xl text-main" />
+                <PawPrintIcon className="text-4xl text-main" />
               )}
             </div>
             <div className="flex flex-1 flex-col justify-between">

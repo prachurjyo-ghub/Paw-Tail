@@ -14,79 +14,79 @@ const benefits = [
     title: "1 Day Delivery",
     description: "Fast delivery within 24 hours",
     icon: HiTruck,
-    iconClassName: "text-blue-600",
-    cardClassName: "bg-blue-50",
+    iconClassName: "text-[#173f31]",
+    bgClassName: "bg-[#e6f3ec]",
   },
   {
     title: "Instant Delivery",
     description: "Same day delivery available",
     icon: HiBolt,
-    iconClassName: "text-amber-600",
-    cardClassName: "bg-amber-50",
+    iconClassName: "text-[#ee9322]",
+    bgClassName: "bg-[#fdf3e6]",
   },
   {
     title: "Lower Prices",
     description: "Best prices guaranteed",
     icon: HiCurrencyDollar,
-    iconClassName: "text-emerald-600",
-    cardClassName: "bg-emerald-50",
+    iconClassName: "text-[#173f31]",
+    bgClassName: "bg-[#e6f3ec]",
   },
   {
     title: "Outside Dhaka",
-    description: "Nationwide delivery coverage",
+    description: "Nationwide coverage",
     icon: HiMapPin,
-    iconClassName: "text-purple-600",
-    cardClassName: "bg-purple-50",
+    iconClassName: "text-[#ee9322]",
+    bgClassName: "bg-[#fdf3e6]",
   },
   {
     title: "Secure Payment",
     description: "100% secure transactions",
     icon: HiShieldCheck,
-    iconClassName: "text-red-600",
-    cardClassName: "bg-red-50",
+    iconClassName: "text-[#173f31]",
+    bgClassName: "bg-[#e6f3ec]",
   },
   {
     title: "24/7 Support",
     description: "Always here to help you",
     icon: BiSupport,
-    iconClassName: "text-indigo-600",
-    cardClassName: "bg-indigo-50",
+    iconClassName: "text-[#ee9322]",
+    bgClassName: "bg-[#fdf3e6]",
   },
 ];
 
 export default function WhyChooseUs() {
   return (
-    <section className="bg-white">
+    <section className="bg-white border-y border-neutral-100 py-6 sm:py-8 lg:py-10">
       <Container>
-        <div className="py-16 lg:py-24">
-          <h2 className="text-center text-3xl font-black leading-tight text-neutral-950 sm:text-4xl">
-            Why Choose Us
-          </h2>
-
-          <div className="mx-auto mt-10 grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {benefits.map(
-              ({
-                title,
-                description,
-                icon: Icon,
-                iconClassName,
-                cardClassName,
-              }) => (
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:grid-cols-3 lg:grid-cols-6">
+          {benefits.map(
+            ({
+              title,
+              description,
+              icon: Icon,
+              iconClassName,
+              bgClassName,
+            }) => (
+              <div
+                key={title}
+                className="flex flex-col items-start gap-2.5 rounded-2xl bg-[#fbf7f1] p-3 sm:flex-row sm:items-center sm:gap-3 sm:p-4 transition-transform duration-300 hover:-translate-y-0.5"
+              >
                 <div
-                  key={title}
-                  className={`${cardClassName} rounded-lg p-7 shadow-sm`}
+                  className={`flex h-9 w-9 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl ${bgClassName}`}
                 >
-                  <Icon className={`text-4xl ${iconClassName}`} />
-                  <h3 className="mt-8 text-xl font-black text-neutral-950">
+                  <Icon className={`text-lg sm:text-2xl ${iconClassName}`} />
+                </div>
+                <div>
+                  <h3 className="text-[12px] sm:text-[14px] font-extrabold leading-tight text-[#173f31]">
                     {title}
                   </h3>
-                  <p className="mt-4 text-base font-medium text-neutral-500">
+                  <p className="mt-0.5 text-[10px] sm:text-[12px] font-medium leading-snug text-[#5d6b65]">
                     {description}
                   </p>
                 </div>
-              )
-            )}
-          </div>
+              </div>
+            )
+          )}
         </div>
       </Container>
     </section>

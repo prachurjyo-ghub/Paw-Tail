@@ -25,3 +25,118 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Dog-bone cursor — PiBoneBold, top tilted left */
+html,
+body,
+* {
+  cursor: url("/cursors/bone-default-v2.svg") 6 6, auto !important;
+}
+
+/* Clickable / interactive targets */
+a,
+button,
+[role="button"],
+summary,
+label[for],
+select,
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+input[type="checkbox"],
+input[type="radio"],
+input[type="file"],
+.cursor-pointer,
+[onclick],
+[tabindex]:not([tabindex="-1"]) {
+  cursor: url("/cursors/bone-pointer-v2.svg") 6 6, pointer !important;
+}
+
+/* Pressed / clicking */
+a:active,
+button:active,
+[role="button"]:active,
+summary:active,
+label[for]:active,
+select:active,
+.cursor-pointer:active,
+[onclick]:active,
+[tabindex]:not([tabindex="-1"]):active,
+*:active {
+  cursor: url("/cursors/bone-click-v2.svg") 6 6, pointer !important;
+}
+
+/* Click chomp burst */
+.bone-cursor-layer {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  overflow: hidden;
+}
+
+.bone-cursor-chomp {
+  position: fixed;
+  width: 18px;
+  height: 18px;
+  margin-left: -9px;
+  margin-top: -9px;
+  border-radius: 999px;
+  border: 2px solid #2f6b4f;
+  box-shadow: 0 0 0 0 rgba(47, 107, 79, 0.35);
+  background:
+    radial-gradient(circle at 35% 35%, #fff6e0 0 28%, transparent 30%),
+    #e8c48a;
+  animation: bone-chomp 0.5s ease-out forwards;
+}
+
+.bone-cursor-chomp::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: 999px;
+  border: 2px solid rgba(244, 196, 48, 0.7);
+  animation: bone-chomp-ring 0.5s ease-out forwards;
+}
+
+@keyframes bone-chomp {
+  0% {
+    transform: scale(0.55) rotate(42deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.35) rotate(42deg);
+    opacity: 0;
+  }
+}
+
+@keyframes bone-chomp-ring {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  html,
+  body,
+  *,
+  a,
+  button,
+  [role="button"],
+  summary,
+  label[for],
+  select,
+  .cursor-pointer,
+  *:active {
+    cursor: auto !important;
+  }
+
+  .bone-cursor-layer {
+    display: none;
+  }
+}

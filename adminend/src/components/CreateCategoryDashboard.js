@@ -6,11 +6,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import DashboardShell from "@/components/DashboardShell";
+import CategoryIcon, { findIconMatch } from "@/components/CategoryIcon";
+import IconPicker from "@/components/IconPicker";
 import { getApiBaseUrl } from "@/lib/apiBaseUrl";
 import { useToast } from "@/components/ui/toast";
 
 const REQUEST_TIMEOUT_MS = 12000;
-const suggestedCategories = ["Dog Food", "Dog Litter", "Dog Treat", "Dog Toys"];
+const suggestedCategories = ["Dog Food", "Cat Food", "Bird Toys", "Fish Care", "Rabbit Hay"];
 
 const fetchWithTimeout = async (url, options = {}) => {
   const controller = new AbortController();
@@ -56,6 +58,8 @@ export default function CreateCategoryDashboard() {
   const [animals, setAnimals] = useState([]);
   const [animalName, setAnimalName] = useState("");
   const [name, setName] = useState("");
+  const [logoType, setLogoType] = useState("icon"); // "icon" | "image"
+  const [selectedIcon, setSelectedIcon] = useState("bone");
   const [existingImage, setExistingImage] = useState("");
   const [imageFile, setImageFile] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -103,7 +107,13 @@ export default function CreateCategoryDashboard() {
 
           setName(found.name || "");
           setAnimalName(found.animalName || "");
-          setExistingImage(found.image || "");
+          if (found.image) {
+            setExistingImage(found.image);
+            setLogoType("image");
+          } else {
+            setSelectedIcon(found.icon || findIconMatch(found.name) || "paw");
+            setLogoType("icon");
+          }
         }
       } catch (error) {
         showToast({
@@ -115,6 +125,16 @@ export default function CreateCategoryDashboard() {
 
     loadFormData();
   }, [apiBaseUrl, editSlug, isUpdate, showToast]);
+
+  const handleNameChange = (val) => {
+    setName(val);
+    if (logoType === "icon") {
+      const match = findIconMatch(val);
+      if (match) {
+        setSelectedIcon(match);
+      }
+    }
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -132,8 +152,17 @@ export default function CreateCategoryDashboard() {
       const formData = new FormData();
       formData.append("name", name.trim());
       formData.append("animalName", animalName.trim());
-      if (imageFile) {
-        formData.append("image", imageFile);
+
+      if (logoType === "icon") {
+        formData.append("icon", selectedIcon || "paw");
+        formData.append("image", "");
+      } else {
+        if (imageFile) {
+          formData.append("image", imageFile);
+        } else if (existingImage) {
+          formData.append("image", existingImage);
+        }
+        formData.append("icon", "🐾");
       }
 
       const response = await fetchWithTimeout(
@@ -190,17 +219,17 @@ export default function CreateCategoryDashboard() {
         </h1>
         <p className="mt-1.5 max-w-3xl text-sm font-semibold leading-6 text-slate-500">
           {isUpdate
-            ? "Update category details and animal mapping used across storefront."
-            : "Add a category under a selected animal. Categories can be turned on or off and used throughout the admin app."}
+            ? "Update category details and icon/image presentation."
+            : "Add a category under a selected animal with your choice of minimal icon or custom image."}
         </p>
       </div>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className="rounded-[24px] border border-neutral-200 bg-white p-5 shadow-lg shadow-main/5">
-          <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="mt-5 grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+        <div className="rounded-[24px] border border-neutral-200 bg-white p-5 shadow-lg shadow-main/5 sm:p-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-xs font-black uppercase tracking-wide text-main/80">
-                Animal
+                Parent Animal
               </label>
               <select
                 value={animalName}
@@ -218,62 +247,121 @@ export default function CreateCategoryDashboard() {
 
             <div>
               <label className="block text-xs font-black uppercase tracking-wide text-main/80">
-                Category name
+                Category Name
               </label>
               <input
                 type="text"
-                placeholder="Premium Dog Food"
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => handleNameChange(event.target.value)}
+                placeholder="e.g. Dog Food, Parrot Toys, Hay"
                 className="mt-1.5 h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-300 focus:border-main"
               />
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-bold text-slate-400">Quick ideas:</span>
+                {suggestedCategories.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => handleNameChange(item)}
+                    className="rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] font-bold text-slate-600 transition hover:bg-neutral-200"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
             </div>
 
+            {/* Logo Presentation Mode Selection */}
             <div>
               <label className="block text-xs font-black uppercase tracking-wide text-main/80">
-                Category image
+                Logo Presentation Type
               </label>
-              <label className="mt-1.5 flex min-h-28 cursor-pointer items-center justify-center rounded-xl border border-dashed border-main/25 bg-mainSoft/30 px-4 text-center text-sm font-semibold text-slate-600 transition hover:border-main/45 hover:bg-mainSoft/50">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) => setImageFile(event.target.files?.[0] || null)}
-                  className="sr-only"
-                />
-                {shownImage ? (
-                  <span className="flex items-center gap-3">
-                    <span className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm">
-                      <Image
-                        src={shownImage}
-                        alt="Category preview"
-                        width={64}
-                        height={64}
-                        className="h-full w-full object-cover"
-                      />
-                    </span>
-                    <span className="text-left">
-                      <span className="block font-black text-main">
-                        {imageFile ? imageFile.name : "Current image"}
-                      </span>
-                      <span className="block text-xs text-slate-500">
-                        Click to replace the category image
-                      </span>
-                    </span>
-                  </span>
-                ) : (
-                  <span>
-                    <span className="block font-black text-main">Upload category image</span>
-                    <span className="block text-xs text-slate-500">PNG, JPG, WEBP</span>
-                  </span>
-                )}
-              </label>
+              <div className="mt-2 flex rounded-xl border border-neutral-200 bg-neutral-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => setLogoType("icon")}
+                  className={`flex-1 rounded-lg py-2 text-xs font-black transition ${
+                    logoType === "icon"
+                      ? "bg-main text-white shadow-xs"
+                      : "text-slate-600 hover:text-main"
+                  }`}
+                >
+                  ✨ Minimal Vector Icon (Recommended)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLogoType("image")}
+                  className={`flex-1 rounded-lg py-2 text-xs font-black transition ${
+                    logoType === "image"
+                      ? "bg-main text-white shadow-xs"
+                      : "text-slate-600 hover:text-main"
+                  }`}
+                >
+                  🖼️ Custom Image Upload
+                </button>
+              </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 pt-2">
+            {/* Icon Picker Mode */}
+            {logoType === "icon" ? (
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-wide text-main/80">
+                  Select Minimal Vector Logo
+                </label>
+                <IconPicker
+                  selectedIcon={selectedIcon}
+                  onSelectIcon={(iconId) => setSelectedIcon(iconId)}
+                  entityName={name}
+                />
+              </div>
+            ) : (
+              /* Image Upload Mode */
+              <div>
+                <label className="block text-xs font-black uppercase tracking-wide text-main/80">
+                  Category Image Upload
+                </label>
+                <label className="mt-1.5 flex min-h-28 cursor-pointer items-center justify-center rounded-xl border border-dashed border-main/25 bg-mainSoft/30 px-4 text-center text-sm font-semibold text-slate-600 transition hover:border-main/45 hover:bg-mainSoft/50">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => setImageFile(event.target.files?.[0] || null)}
+                    className="sr-only"
+                  />
+                  {shownImage ? (
+                    <span className="flex items-center gap-3">
+                      <span className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm">
+                        <Image
+                          src={shownImage}
+                          alt="Category preview"
+                          width={64}
+                          height={64}
+                          className="h-full w-full object-cover"
+                        />
+                      </span>
+                      <span className="text-left">
+                        <span className="block font-black text-main">
+                          {imageFile ? imageFile.name : "Current image"}
+                        </span>
+                        <span className="block text-xs text-slate-500">
+                          Click to replace the image
+                        </span>
+                      </span>
+                    </span>
+                  ) : (
+                    <span>
+                      <span className="block font-black text-main">Upload category image</span>
+                      <span className="block text-xs text-slate-500">PNG, JPG, WEBP</span>
+                    </span>
+                  )}
+                </label>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-3 pt-3">
               <button
                 type="submit"
                 disabled={loading}
-                className="h-10 rounded-xl bg-main px-4 text-sm font-black text-white transition hover:bg-mainHover disabled:cursor-not-allowed disabled:opacity-70"
+                className="h-10 rounded-xl bg-main px-5 text-sm font-black text-white transition hover:bg-mainHover disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {loading ? (isUpdate ? "Updating..." : "Creating...") : title}
               </button>
@@ -287,34 +375,42 @@ export default function CreateCategoryDashboard() {
           </form>
         </div>
 
+        {/* Live Preview Panel */}
         <div className="space-y-4">
           <div className="rounded-[24px] border border-neutral-200 bg-white p-5 shadow-lg shadow-main/5">
             <p className="text-xs font-black uppercase tracking-[0.3em] text-main/60">
-              Suggested Categories
+              Live Preview
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {suggestedCategories.map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() => setName(item)}
-                  className="rounded-full border border-main/20 bg-mainSoft/60 px-3 py-1.5 text-xs font-black text-main transition hover:bg-mainSoft"
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </div>
+            <p className="mt-1 text-xs text-slate-500">
+              How this subcategory icon and label will look:
+            </p>
 
-          <div className="rounded-[24px] border border-neutral-200 bg-white p-5 shadow-lg shadow-main/5">
-            <p className="text-xs font-black uppercase tracking-[0.3em] text-main/60">
-              Category Note
-            </p>
-            <ul className="mt-3 space-y-2 text-sm font-semibold leading-6 text-slate-500">
-              <li>Each category belongs to one animal only.</li>
-              <li>The slug updates automatically from the name when saved.</li>
-              <li>The uploaded image will appear in the storefront.</li>
-            </ul>
+            <div className="mt-4 flex items-center justify-center rounded-2xl bg-[#fbf7f1] p-6">
+              <div className="flex h-[155px] w-[170px] flex-col items-center justify-center rounded-2xl border border-neutral-200/80 bg-white p-4 text-center shadow-[0_4px_20px_rgba(23,63,49,0.04)]">
+                {logoType === "image" && shownImage ? (
+                  <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-mainSoft">
+                    <Image
+                      src={shownImage}
+                      alt={name || "Preview"}
+                      width={48}
+                      height={48}
+                      className="h-full w-full object-cover"
+                    />
+                  </span>
+                ) : (
+                  <CategoryIcon
+                    icon={selectedIcon}
+                    name={name}
+                    className="h-12 w-12 text-main"
+                    strokeWidth={1.8}
+                  />
+                )}
+
+                <h3 className="mt-3 text-base font-bold tracking-tight text-main">
+                  {name.trim() || "Category Name"}
+                </h3>
+              </div>
+            </div>
           </div>
         </div>
       </div>

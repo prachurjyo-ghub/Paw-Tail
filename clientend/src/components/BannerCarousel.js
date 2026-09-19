@@ -17,8 +17,10 @@ import { mapBannerToSlide } from "@/lib/bannerApi";
 const toSlides = (banners = []) =>
   banners.map(mapBannerToSlide).filter((slide) => slide?.src);
 
+const EMPTY_BANNERS = [];
+
 export default function BannerCarousel({
-  initialBanners = [],
+  initialBanners = EMPTY_BANNERS,
   bannerType,
   autoPlayMs = 0,
   slideAspectClassName = "aspect-[5/2] w-full sm:aspect-[21/8] md:max-h-[420px] md:min-h-[220px]",
@@ -58,6 +60,10 @@ export default function BannerCarousel({
   }, [initialBanners, bannerType]);
 
   const slides = useMemo(() => bannerSlides, [bannerSlides]);
+  const carouselOptions = useMemo(
+    () => ({ align: "start", loop: slides.length > 1 }),
+    [slides.length]
+  );
 
   useEffect(() => {
     if (!carouselApi || !autoPlayMs || slides.length <= 1) {
@@ -80,7 +86,7 @@ export default function BannerCarousel({
       <div className="mx-auto w-full max-w-7xl">
         <Carousel
           setApi={setCarouselApi}
-          opts={{ align: "start", loop: slides.length > 1 }}
+          opts={carouselOptions}
           className="w-full"
         >
           <CarouselContent>

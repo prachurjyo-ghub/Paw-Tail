@@ -1,6 +1,19 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
 
+let refreshPromise = null;
+
+async function requestAdminTokenRefresh() {
+  if (!refreshPromise) {
+    refreshPromise = fetchAdminJson("/users/refresh-token", {
+      method: "POST",
+    }).finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
 async function fetchAdminJson(path, options = {}) {
   const controller = new AbortController();
   const timeout = globalThis.setTimeout(() => controller.abort(), 10000);
@@ -41,17 +54,18 @@ export async function adminApi(path, options = {}) {
     path !== "/users/logout" &&
     path !== "/users/refresh-token"
   ) {
-    const refreshed = await fetchAdminJson("/users/refresh-token", {
-      method: "POST",
-    });
+    const refreshed = await requestAdminTokenRefresh();
 
-    if (refreshed.response.ok) {
+    if (refreshed?.response?.ok) {
       ({ response, data } = await fetchAdminJson(path, options));
     }
   }
 
   if (!response.ok) {
-    throw new Error(data.message || "Request failed");
+    const error = new Error(data.message || "Request failed");
+    error.status = response.status;
+    error.data = data;
+    throw error;
   }
 
   return data;

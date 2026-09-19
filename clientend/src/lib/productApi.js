@@ -54,8 +54,11 @@ export function mapProductForListingCard(product) {
 
     return {
       _id: variant._id,
+      name: variant.name || variant.value || "Option",
+      value: variant.value || variant.name || "Option",
       label: variant.value || variant.name || "Option",
       price: variantPrice,
+      priceAdjustment: Number(variant.priceAdjustment || 0),
       stockQuantity: variantStock,
       isOutOfStock: variantStock <= 0,
     };
@@ -72,6 +75,8 @@ export function mapProductForListingCard(product) {
     badges,
     ratingCount: 0,
     imageUrl: getProductImageUrl(product.images?.[0]),
+    images: product.images || [],
+    discountPrice: product.discountPrice,
     emoji: "📦",
     stockQuantity,
     variants,
@@ -89,6 +94,7 @@ export function mapProductForListingCard(product) {
 export async function getProductsFromApi({
   brand,
   category,
+  animal,
   limit = 48,
   sort = "newest",
 } = {}) {
@@ -103,6 +109,7 @@ export async function getProductsFromApi({
 
     if (brand) params.set("brand", brand);
     if (category) params.set("category", category);
+    if (animal) params.set("animal", animal);
 
     const response = await fetch(`${apiBaseUrl}/products/get-products?${params}`, {
       cache: "no-store",
@@ -163,15 +170,12 @@ export async function getProductsForAnimalView(animal, subcategorySlug) {
   const activeCategory = categoryDetails.find((item) => item.name === activeSubcategory);
 
   if (isAllCategory) {
-    const slugs = categoryDetails
-      .filter((item) => !item.isAll && item.slug)
-      .map((item) => item.slug);
-    return getProductsForAnimalCategories(slugs);
+    return getProductsFromApi({ animal: animal.slug });
   }
 
   if (activeCategory?.slug) {
-    return getProductsForCategory(activeCategory.slug);
+    return getProductsFromApi({ animal: animal.slug, category: activeCategory.slug });
   }
 
-  return getProductsForCategory(activeSubcategory);
+  return getProductsFromApi({ animal: animal.slug, category: activeSubcategory });
 }

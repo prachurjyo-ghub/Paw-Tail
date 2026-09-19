@@ -44,7 +44,9 @@ export const buildGuestCartItem = (product, variant, quantity) => {
       ? product.discountPrice
       : product.price;
   const finalUnitPrice =
-    Number(basePrice || 0) + Number(variant?.priceAdjustment || 0);
+    typeof variant?.price === "number"
+      ? Number(variant.price)
+      : Number(basePrice || 0) + Number(variant?.priceAdjustment || 0);
   const stockQuantity = variant?.stockQuantity ?? product.stockQuantity ?? 0;
 
   return {
@@ -53,7 +55,11 @@ export const buildGuestCartItem = (product, variant, quantity) => {
       _id: product._id,
       name: product.name,
       slug: product.slug,
-      image: product.images?.[0] || product.image || null,
+      image:
+        product.images?.[0] ||
+        product.image ||
+        product.imageUrl ||
+        null,
       price: product.price,
       discountPrice: product.discountPrice,
     },

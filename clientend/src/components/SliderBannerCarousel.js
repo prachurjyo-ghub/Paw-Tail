@@ -1,6 +1,8 @@
 import BannerCarousel from "@/components/BannerCarousel";
 
-export default function SliderBannerCarousel({ initialBanners = [] }) {
+const EMPTY_BANNERS = [];
+
+export default function SliderBannerCarousel({ initialBanners = EMPTY_BANNERS }) {
   return (
     <BannerCarousel
       initialBanners={initialBanners}

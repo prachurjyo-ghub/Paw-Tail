@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import CategoryPageContent from "@/components/category/CategoryPageContent";
+import AnimalPageContent from "@/components/category/AnimalPageContent";
 import { findAnimalBySlug, getCategoryAnimalsView } from "@/lib/categoryApi";
 import { getProductsForAnimalView } from "@/lib/productApi";
 
@@ -11,7 +11,7 @@ export async function generateStaticParams() {
   }));
 }
 
-export default async function CategoryPage({ params, searchParams }) {
+export default async function AnimalPage({ params, searchParams }) {
   const { animalSlug } = await params;
   const { sub } = await searchParams;
   const animals = await getCategoryAnimalsView();
@@ -23,5 +23,5 @@ export default async function CategoryPage({ params, searchParams }) {
 
   const products = await getProductsForAnimalView(animal, sub);
 
-  return <CategoryPageContent animal={animal} subcategorySlug={sub} products={products} />;
+  return <AnimalPageContent animal={animal} subcategorySlug={sub} products={products} />;
 }

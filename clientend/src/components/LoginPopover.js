@@ -11,8 +11,8 @@ import {
   HiOutlineUser,
   HiOutlineXMark,
 } from "react-icons/hi2";
-import { PiPawPrintFill } from "react-icons/pi";
 
+import PawPrintIcon from "@/components/icons/PawPrintIcon";
 import { useAuth } from "@/context/AuthContext";
 
 const tabs = [
@@ -202,9 +202,9 @@ export default function LoginPopover({
         <div className="grid gap-6 p-6 sm:p-8 md:grid-cols-2">
           <div className="hidden flex-col items-center justify-center text-center md:flex">
             <div className="relative flex h-52 w-52 items-center justify-center overflow-hidden rounded-3xl bg-accent">
-              <PiPawPrintFill className="absolute -left-4 -top-4 text-[6.5rem] text-main/15" />
-              <PiPawPrintFill className="absolute -bottom-5 -right-3 text-[5.5rem] text-main/15" />
-              <PiPawPrintFill className="text-[6rem] text-main" />
+              <PawPrintIcon className="absolute -left-4 -top-4 text-[6.5rem] text-main/15" />
+              <PawPrintIcon className="absolute -bottom-5 -right-3 text-[5.5rem] text-main/15" />
+              <PawPrintIcon className="text-[6rem] text-main" />
             </div>
             <h2 className="mt-5 text-2xl font-bold text-main">
               Create your pet care account

@@ -6,12 +6,34 @@ const apiBaseUrl =
 
 const FETCH_TIMEOUT_MS = 5000;
 
+const DEFAULT_ANIMALS = [
+  { name: "Dog", slug: "dog", icon: "dog" },
+  { name: "Cat", slug: "cat", icon: "cat" },
+  { name: "Bird", slug: "bird", icon: "bird" },
+  { name: "Fish", slug: "fish", icon: "fish" },
+  { name: "Rabbit", slug: "rabbit", icon: "rabbit" },
+  { name: "Small Pets", slug: "small-pets", icon: "small-pets" },
+  { name: "Reptile", slug: "reptile", icon: "reptile" },
+];
+
 export function resolveCatalogImageUrl(imagePath) {
   if (!imagePath) return null;
   if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
     return imagePath;
   }
-  return `${getAssetOrigin()}${imagePath.startsWith("/") ? imagePath : `/${imagePath}`}`;
+
+  let normalized = imagePath.trim();
+  if (!normalized.startsWith("/")) {
+    // Seed/admin sometimes stores bare filenames (e.g. "icon-dog.svg")
+    // while Express serves them under /uploads/...
+    if (normalized.startsWith("icon-")) {
+      normalized = `/uploads/brands/${normalized}`;
+    } else {
+      normalized = `/uploads/products/${normalized}`;
+    }
+  }
+
+  return `${getAssetOrigin()}${normalized}`;
 }
 
 export async function getAnimalsFromApi() {
@@ -52,11 +74,24 @@ export async function getCategoriesFromApi() {
   }
 }
 
+export async function getCategoryNavbarView() {
+  const categories = await getCategoriesFromApi();
+  return categories.map((cat) => ({
+    name: cat.name,
+    slug: cat.slug,
+    icon: cat.icon || "🐾",
+    image: cat.image || null,
+    imageUrl: resolveCatalogImageUrl(cat.image),
+  }));
+}
+
 export async function getCategoryAnimalsView() {
   const [animals, categories] = await Promise.all([
     getAnimalsFromApi(),
     getCategoriesFromApi(),
   ]);
+
+  const sourceAnimals = animals.length ? animals : DEFAULT_ANIMALS;
 
   const groupedCategories = categories.reduce((acc, item) => {
     const key = (item.animalName || "").trim().toLowerCase();
@@ -71,7 +106,7 @@ export async function getCategoryAnimalsView() {
     return acc;
   }, {});
 
-  const orderedAnimals = [...animals].sort(
+  const orderedAnimals = [...sourceAnimals].sort(
     (a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
   );
 

@@ -1,11 +1,13 @@
-import { redirect } from "next/navigation";
-import { getCategoryAnimalsView } from "@/lib/categoryApi";
+import { getCategoryNavbarView, getCategoryAnimalsView } from "@/lib/categoryApi";
+import { getBrandNavbarView } from "@/lib/brandApi";
+import ExplorePageContent from "@/components/explore/ExplorePageContent";
 
 export default async function CategoriesPage() {
-  const animals = await getCategoryAnimalsView();
-  if (!animals.length) {
-    redirect("/");
-  }
+  const [animals, categories, brands] = await Promise.all([
+    getCategoryAnimalsView(),
+    getCategoryNavbarView(),
+    getBrandNavbarView()
+  ]);
 
-  redirect(`/categories/${animals[0].slug}`);
+  return <ExplorePageContent animals={animals} categories={categories} brands={brands} />;
 }

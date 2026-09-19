@@ -1,22 +1,25 @@
 import MiddleBar from "@/components/MiddleBar";
 import Navbar from "@/components/Navbar";
 import TopBar from "@/components/TopBar";
+import MobileBottomNav from "@/components/MobileBottomNav";
 import { getBrandNavbarView } from "@/lib/brandApi";
-import { getCategoryAnimalsView } from "@/lib/categoryApi";
+import { getCategoryAnimalsView, getCategoryNavbarView } from "@/lib/categoryApi";
 
 export default async function Header() {
-  const [animals, brands] = await Promise.all([
+  const [animals, categories, brands] = await Promise.all([
     getCategoryAnimalsView(),
+    getCategoryNavbarView(),
     getBrandNavbarView(),
   ]);
 
   return (
     <>
       <TopBar />
-      <div className="sticky top-0 z-50">
+      <div className="sticky top-0 z-50 bg-white">
         <MiddleBar />
-        <Navbar animals={animals} brands={brands} />
+        <Navbar animals={animals} categories={categories} brands={brands} />
       </div>
+      <MobileBottomNav />
     </>
   );
 }

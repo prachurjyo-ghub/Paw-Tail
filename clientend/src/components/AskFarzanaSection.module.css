@@ -1,0 +1,234 @@
+.section {
+  padding: 28px 0 8px;
+}
+
+.card {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  background: #173f31;
+  color: #fff;
+  border-radius: 32px;
+  overflow: hidden;
+  box-shadow: 0 18px 40px rgba(23, 63, 49, 0.18);
+  transform: translateY(0);
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s ease;
+  animation: riseIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 48px rgba(23, 63, 49, 0.26);
+}
+
+.media {
+  min-height: 320px;
+  background-image: url("/assets/pet-expert.jpg");
+  background-size: cover;
+  background-position: center 18%;
+  background-repeat: no-repeat;
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.card:hover .media {
+  transform: scale(1.04);
+}
+
+.copy {
+  padding: 40px 44px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  animation: fadeSlide 0.75s ease 0.12s both;
+}
+
+.eyebrow {
+  color: #f28c38;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin: 0 0 8px;
+}
+
+.copy h2 {
+  font-size: clamp(26px, 3vw, 34px);
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 8px 0 12px;
+  font-weight: 800;
+}
+
+.copy p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.82);
+  max-width: 520px;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.actions {
+  margin-top: 22px;
+}
+
+.cta {
+  height: 48px;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: #f28c38;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+  box-shadow: 0 8px 20px rgba(242, 140, 56, 0.28);
+}
+
+.cta:hover {
+  background: #d97f12;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(242, 140, 56, 0.38);
+}
+
+.cta:active {
+  transform: translateY(0);
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeSlide {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Tablet: stacked, image on top via aspect-ratio panel */
+@media (max-width: 900px) {
+  .card {
+    grid-template-columns: 1fr;
+    border-radius: 24px;
+  }
+
+  .media {
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+    transform: none;
+  }
+
+  .card:hover .media {
+    transform: none;
+  }
+
+  .copy {
+    padding: 24px 22px 28px;
+    animation-name: fadeUp;
+  }
+}
+
+/* Phone: compact side-by-side — photo strip + copy */
+@media (max-width: 640px) {
+  .section {
+    padding: 14px 0 4px;
+  }
+
+  .card {
+    grid-template-columns: 112px 1fr;
+    border-radius: 18px;
+    align-items: stretch;
+  }
+
+  .media {
+    aspect-ratio: auto;
+    min-height: 100%;
+    background-position: 35% center;
+  }
+
+  .copy {
+    padding: 14px 14px 16px;
+    gap: 0;
+  }
+
+  .eyebrow {
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+  }
+
+  .copy h2 {
+    font-size: 15px;
+    line-height: 1.25;
+    margin: 0 0 6px;
+  }
+
+  .copy p {
+    font-size: 11.5px;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .actions {
+    margin-top: 10px;
+  }
+
+  .cta {
+    width: 100%;
+    height: 36px;
+    padding: 0 12px;
+    justify-content: center;
+    font-size: 12px;
+    box-shadow: 0 4px 12px rgba(242, 140, 56, 0.28);
+  }
+
+  .card:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .copy,
+  .media,
+  .cta {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .card:hover,
+  .cta:hover {
+    transform: none;
+  }
+}

@@ -71,7 +71,7 @@ const mapSavedAddressToShipping = (address) => ({
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { user, loaded, refreshUser } = useAuth();
+  const { user, loaded } = useAuth();
   const {
     cartItems,
     cartSubtotal,
@@ -106,10 +106,10 @@ export default function CheckoutPage() {
 
     setProfileLoaded(false);
 
-    Promise.all([refreshUser(), fetchCart()])
+    fetchCart()
       .catch(() => undefined)
       .finally(() => setProfileLoaded(true));
-  }, [fetchCart, loaded, refreshUser, user?.id]);
+  }, [fetchCart, loaded, user?.id]);
 
   useEffect(() => {
     if (!user || !cartItems.length) return;

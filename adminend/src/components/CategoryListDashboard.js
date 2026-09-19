@@ -1,11 +1,23 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import CategoryIcon from "@/components/CategoryIcon";
 import DashboardShell, { Icon } from "@/components/DashboardShell";
 import { getApiBaseUrl } from "@/lib/apiBaseUrl";
 import { useToast } from "@/components/ui/toast";
+
+const getAssetOrigin = (apiBaseUrl) => apiBaseUrl.replace(/\/api\/v1\/?$/, "");
+
+const resolveImageUrl = (apiBaseUrl, imagePath) => {
+  if (!imagePath) return "";
+  if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
+    return imagePath;
+  }
+  return `${getAssetOrigin(apiBaseUrl)}${imagePath.startsWith("/") ? imagePath : `/${imagePath}`}`;
+};
 
 const REQUEST_TIMEOUT_MS = 12000;
 
@@ -101,6 +113,8 @@ export default function CategoryListDashboard() {
           id: item._id,
           name: item.name,
           slug: item.slug,
+          icon: item.icon,
+          image: item.image,
           active: !!item.isActive,
           updated: formatDate(item.updatedAt),
         }))
@@ -109,15 +123,8 @@ export default function CategoryListDashboard() {
       setCategoryRows(
         (categoriesJson.categories || []).map((item) => ({
           id: item._id,
-          image: item.image
-            ? "IMG"
-            : (item.name || "")
-                .split(" ")
-                .map((part) => part[0])
-                .filter(Boolean)
-                .slice(0, 2)
-                .join("")
-                .toUpperCase() || "CT",
+          icon: item.icon,
+          image: item.image,
           category: item.name,
           animal: item.animalName,
           slug: item.slug,
@@ -366,7 +373,27 @@ export default function CategoryListDashboard() {
                   className="border-b border-neutral-100 last:border-b-0"
                 >
                   <td className="px-8 py-5 text-sm font-black text-main">
-                    {animal.name}
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-mainSoft text-main shadow-xs">
+                        {animal.image ? (
+                          <Image
+                            src={resolveImageUrl(apiBaseUrl, animal.image)}
+                            alt={animal.name}
+                            width={36}
+                            height={36}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <CategoryIcon
+                            icon={animal.icon}
+                            slug={animal.slug}
+                            name={animal.name}
+                            className="h-5 w-5"
+                          />
+                        )}
+                      </span>
+                      <span>{animal.name}</span>
+                    </div>
                   </td>
                   <td className="px-8 py-5 text-sm font-semibold text-slate-500">
                     {animal.slug}
@@ -416,7 +443,7 @@ export default function CategoryListDashboard() {
           <table className="w-full min-w-[980px] border-collapse text-left">
             <thead className="bg-mainSoft/25">
               <tr className="border-b border-neutral-100 text-xs font-black uppercase tracking-[0.28em] text-slate-400">
-                <th className="px-8 py-4">Image</th>
+                <th className="px-8 py-4">Image / Icon</th>
                 <th className="px-8 py-4">Category</th>
                 <th className="px-8 py-4">Animal</th>
                 <th className="px-8 py-4">Slug</th>
@@ -432,8 +459,23 @@ export default function CategoryListDashboard() {
                   className="border-b border-neutral-100 last:border-b-0"
                 >
                   <td className="px-8 py-5">
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-mainSoft text-xs font-black text-main">
-                      {(item.image || item.name || "C").slice(0, 2).toUpperCase()}
+                    <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-mainSoft text-main shadow-xs">
+                      {item.image ? (
+                        <Image
+                          src={resolveImageUrl(apiBaseUrl, item.image)}
+                          alt={item.category}
+                          width={36}
+                          height={36}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <CategoryIcon
+                          icon={item.icon}
+                          slug={item.slug}
+                          name={item.category}
+                          className="h-5 w-5"
+                        />
+                      )}
                     </span>
                   </td>
                   <td className="px-8 py-5 text-sm font-black text-main">{item.name}</td>

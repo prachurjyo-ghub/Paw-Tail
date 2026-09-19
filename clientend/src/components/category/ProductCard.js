@@ -3,23 +3,20 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { HiOutlineHeart, HiOutlineShoppingBag } from "react-icons/hi2";
+import { HiOutlineHeart, HiHeart, HiOutlinePlus } from "react-icons/hi2";
+import { TbShoppingBagPlus } from "react-icons/tb";
 
 import { useCart } from "@/components/CartProvider";
 import { useWishlist } from "@/components/WishlistProvider";
-
-const badgeClassNames = {
-  Sale: "bg-red-600 text-white",
-  Autoship: "bg-main text-white",
-  New: "bg-accent text-white",
-};
 
 function formatPrice(value) {
   return new Intl.NumberFormat("en-BD", {
     style: "currency",
     currency: "BDT",
     maximumFractionDigits: 0,
-  }).format(Number(value || 0));
+  })
+    .format(Number(value || 0))
+    .replace("BDT", "৳");
 }
 
 export default function ProductCard({ product }) {
@@ -39,6 +36,9 @@ export default function ProductCard({ product }) {
   const selectedVariant =
     product.variants?.find((variant) => variant._id === selectedVariantId) || null;
   const displayPrice = selectedVariant?.price ?? product.price;
+  const oldPrice = selectedVariant?.compareAtPrice ?? product.compareAtPrice ?? null;
+  const discountPercentage = selectedVariant?.discountPercentage ?? product.discountPercentage ?? 0;
+  
   const displayStock = selectedVariant?.stockQuantity ?? product.stockQuantity ?? 0;
   const isOutOfStock = selectedVariant
     ? selectedVariant.isOutOfStock
@@ -47,180 +47,144 @@ export default function ProductCard({ product }) {
   const handleWishlist = async (event) => {
     event.preventDefault();
     event.stopPropagation();
-
-    if (!productId) {
-      setMessage("Product is not ready yet");
-      return;
-    }
-
+    if (!productId) return;
     try {
       await toggleWishlist(product);
-      setMessage(isWishlistedNow ? "Removed from wishlist" : "Added to wishlist");
     } catch (error) {
-      setMessage(error.message || "Wishlist failed");
+      console.error(error);
     }
   };
 
   const handleAddToCart = async (event) => {
     event.preventDefault();
     event.stopPropagation();
-
-    if (!productId) {
-      setMessage("Product is not ready yet");
-      return;
-    }
-
-    if (product.hasVariants && !selectedVariantId) {
-      setMessage("Please select a size option");
-      return;
-    }
+    if (!productId || isOutOfStock) return;
+    if (product.hasVariants && !selectedVariantId) return;
 
     setIsAdding(true);
-    setMessage("");
-
     try {
       await addToCart({
         productId,
         variantId: selectedVariantId || null,
         quantity: 1,
+        product,
       });
-      setMessage("Added to cart");
     } catch (error) {
-      setMessage(
-        error.status === 401 ? "Login required" : error.message || "Could not add to cart"
-      );
+      console.error(error);
     } finally {
       setIsAdding(false);
     }
   };
 
+  // Badges logic based on the reference HTML
+  const hasDiscount = discountPercentage > 0;
+  const isNew = true; // Hardcoded or derive from product.createdAt
+
   return (
-    <article className="overflow-hidden rounded-2xl bg-white shadow-[0_16px_45px_rgba(23,63,49,0.08)] transition-transform duration-300 hover:-translate-y-1">
-      <Link href={productSlug ? `/product/${productSlug}` : "#"} className="block">
-        <div className="relative flex aspect-[4/3] items-center justify-center bg-gradient-to-b from-white to-[#fbf7f1]">
-          <div className="absolute left-4 top-4 flex flex-col gap-2">
-            {(product.badges || []).map((badge) => (
-              <span
-                key={`${productSlug || product.name}-${badge}`}
-                className={`rounded-full px-4 py-2 text-xs font-black ${
-                  badgeClassNames[badge] || "bg-main text-white"
-                }`}
-              >
-                {badge}
-              </span>
-            ))}
-          </div>
+    <article className="group flex flex-col overflow-hidden rounded-[16px] border border-transparent bg-white transition-all duration-200 hover:-translate-y-[3px] hover:shadow-[0_8px_24px_rgba(23,63,49,0.08)]">
+      <Link href={productSlug ? `/product/${productSlug}` : "#"} className="flex flex-1 flex-col">
+        {/* Media Area */}
+        <div className="relative h-[168px] shrink-0 bg-[#f4efe6]">
           {product.imageUrl ? (
             <Image
               src={product.imageUrl}
               alt={product.name}
               fill
-              sizes="(max-width: 768px) 100vw, 33vw"
               unoptimized
-              className="object-contain p-6"
+              priority
+              className="object-contain p-[10px_16px] transition-transform duration-[0.35s] ease-in-out group-hover:scale-[1.04]"
             />
           ) : (
-            <span className="text-6xl">{product.emoji}</span>
+            <div className="flex h-full w-full items-center justify-center text-sm text-[#173f31]/40">
+              No Image
+            </div>
           )}
-          {isOutOfStock ? (
-            <span className="absolute right-4 top-4 rounded-full bg-red-600 px-3 py-1 text-xs font-black text-white">
-              Out of stock
-            </span>
-          ) : null}
+
+          {/* Badges */}
+          <div className="absolute left-[10px] top-[10px] flex flex-col gap-1.5">
+            {hasDiscount && (
+              <span className="rounded-full bg-[#ee9322] px-2 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em] text-white">
+                Sale
+              </span>
+            )}
+            {isNew && !hasDiscount && (
+              <span className="rounded-full bg-[#173f31] px-2 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.04em] text-white">
+                New
+              </span>
+            )}
+          </div>
+
+          {/* Wishlist Button */}
+          <button
+            type="button"
+            onClick={handleWishlist}
+            className={`absolute right-[8px] top-[8px] flex h-[34px] w-[34px] cursor-pointer items-center justify-center rounded-full border-0 shadow-[0_4px_12px_rgba(23,63,49,0.1)] transition-colors ${
+              isWishlistedNow ? "bg-[#ee9322] text-white" : "bg-white text-[#173f31]"
+            }`}
+          >
+            {isWishlistedNow ? (
+              <HiHeart className="h-5 w-5" />
+            ) : (
+              <HiOutlineHeart className="h-5 w-5" />
+            )}
+          </button>
         </div>
 
-        <div className="p-5">
-          <p className="text-xs font-black uppercase tracking-wide text-emerald-700">
-            {product.brand}
+        {/* Body Area */}
+        <div className="flex flex-1 flex-col gap-1.5 p-[12px_14px_14px]">
+          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#5d6b65]">
+            {product.category?.name || "Uncategorized"} · {product.brand?.name || "PawTail"}
           </p>
-          <h3 className="mt-2 min-h-14 text-lg font-black leading-7 text-main">
+          <h3 className="line-clamp-2 text-[14.5px] font-bold leading-[1.3] tracking-[-0.02em] text-[#173f31]">
             {product.name}
           </h3>
 
-          {product.variants?.length ? (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {product.variants.map((variant) => {
-                const isSelected = selectedVariantId === variant._id;
-
-                return (
-                  <button
-                    key={variant._id}
-                    type="button"
-                    disabled={variant.isOutOfStock}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setSelectedVariantId(variant._id);
-                    }}
-                    className={`rounded-full border px-3 py-1 text-xs font-black transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
-                      isSelected
-                        ? "border-main bg-main text-white"
-                        : "border-neutral-200 bg-[#f4faf6] text-main hover:border-main/40"
-                    }`}
-                  >
-                    {variant.label}
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
-
-          <p className="mt-2 text-sm font-semibold text-main/65">
-            {isOutOfStock ? "Out of stock" : `${displayStock} in stock`}
-          </p>
-
-          <div className="mt-4 flex items-center gap-2 text-sm">
-            <span className="text-accent">★★★★★</span>
-            <span className="font-medium text-main/60">({product.ratingCount})</span>
+          <div className="text-[12px] font-bold text-[#ee9322]">
+            ★★★★★ <em className="not-italic font-semibold text-[#5d6b65]">(12)</em>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-end gap-3">
-            <span className="text-3xl font-black text-main">
-              {formatPrice(displayPrice)}
-            </span>
-            {product.oldPrice ? (
-              <span className="text-sm font-bold text-main/50 line-through">
-                {formatPrice(product.oldPrice)}
-              </span>
-            ) : null}
-            {product.discount ? (
-              <span className="text-sm font-black text-red-600">
-                {product.discount}
-              </span>
-            ) : null}
+          {displayStock > 0 && displayStock < 10 && (
+            <p className="text-[12px] font-semibold text-[#c0561a]">
+              Only {displayStock} left
+            </p>
+          )}
+
+          {/* Buy Area */}
+          <div className="mt-auto flex items-center justify-between gap-[10px] pt-1.5">
+            <div className="flex flex-wrap items-baseline gap-[7px]">
+              <b className="text-[16px] font-extrabold tracking-[-0.03em] text-[#173f31]">
+                {formatPrice(displayPrice)}
+              </b>
+              {oldPrice && oldPrice > displayPrice && (
+                <>
+                  <s className="text-[12.5px] font-semibold text-[#9aa59f]">
+                    {formatPrice(oldPrice)}
+                  </s>
+                  <span className="text-[11px] font-extrabold text-[#c0392b]">
+                    -{Math.round(((oldPrice - displayPrice) / oldPrice) * 100)}%
+                  </span>
+                </>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              disabled={isOutOfStock || isAdding}
+              className={`flex h-[36px] shrink-0 cursor-pointer items-center gap-1.5 rounded-[10px] border-0 px-3 text-[13px] font-bold text-white transition-colors ${
+                isAdding
+                  ? "bg-[#2f9e5e]"
+                  : isOutOfStock
+                  ? "cursor-not-allowed bg-[#9aa59f]"
+                  : "bg-[#173f31] hover:bg-[#102b22]"
+              }`}
+            >
+              <HiOutlinePlus className="h-4 w-4" />
+              <span className="hidden sm:inline">{isAdding ? "Added" : "Add"}</span>
+            </button>
           </div>
         </div>
       </Link>
-
-      <div className="px-5 pb-5">
-        <div className="grid grid-cols-[3.25rem_1fr] gap-3">
-          <button
-            type="button"
-            aria-label={`Add ${product.name} to wishlist`}
-            onClick={handleWishlist}
-            className={`flex h-12 items-center justify-center rounded-lg border text-xl transition-colors ${
-              isWishlistedNow
-                ? "border-main bg-main text-white"
-                : "border-neutral-200 text-main hover:border-main"
-            }`}
-          >
-            <HiOutlineHeart />
-          </button>
-          <button
-            type="button"
-            onClick={handleAddToCart}
-            disabled={isAdding || isOutOfStock}
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-main text-base font-black text-white transition-colors hover:bg-main/90 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            <HiOutlineShoppingBag />
-            {isOutOfStock ? "Out of stock" : isAdding ? "Adding..." : "Add"}
-          </button>
-        </div>
-
-        {message ? (
-          <p className="mt-3 text-xs font-semibold text-main/70">{message}</p>
-        ) : null}
-      </div>
     </article>
   );
 }

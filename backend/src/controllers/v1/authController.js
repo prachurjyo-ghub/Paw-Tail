@@ -86,6 +86,14 @@ const cookieOptions = (maxAge) => ({
   secure: process.env.NODE_ENV === "production",
   sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
   maxAge,
+  path: "/",
+});
+
+const clearCookieOptions = () => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  path: "/",
 });
 
 // Function to send verification email
@@ -690,17 +698,8 @@ const changePassword = async (req, res, next) => {
     user.refreshToken = null;
     await user.save();
 
-    res.clearCookie("accessToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    });
-
-    res.clearCookie("refreshToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    });
+    res.clearCookie("accessToken", clearCookieOptions());
+    res.clearCookie("refreshToken", clearCookieOptions());
 
     return res.status(200).json({
       success: true,
@@ -972,17 +971,8 @@ const deleteAccount = async (req, res, next) => {
 
     await User.deleteOne({ _id: user._id });
 
-    res.clearCookie("accessToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    });
-
-    res.clearCookie("refreshToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    });
+    res.clearCookie("accessToken", clearCookieOptions());
+    res.clearCookie("refreshToken", clearCookieOptions());
 
     return res.status(200).json({
       success: true,
@@ -1007,17 +997,8 @@ const logout = async (req, res, next) => {
       }
     }
 
-    res.clearCookie("accessToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    });
-
-    res.clearCookie("refreshToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    });
+    res.clearCookie("accessToken", clearCookieOptions());
+    res.clearCookie("refreshToken", clearCookieOptions());
 
     return res.status(200).json({
       success: true,

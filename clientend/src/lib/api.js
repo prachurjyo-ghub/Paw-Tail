@@ -1,6 +1,19 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
 
+let refreshPromise = null;
+
+async function requestTokenRefresh() {
+  if (!refreshPromise) {
+    refreshPromise = fetchJson("/users/refresh-token", {
+      method: "POST",
+    }).finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
 async function fetchJson(path, options = {}) {
   const method = (options.method || "GET").toUpperCase();
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -24,20 +37,22 @@ export async function apiRequest(path, options = {}) {
   if (
     response.status === 401 &&
     path !== "/users/login" &&
+    path !== "/users/signup" &&
     path !== "/users/logout" &&
     path !== "/users/refresh-token"
   ) {
-    const refreshed = await fetchJson("/users/refresh-token", {
-      method: "POST",
-    });
+    const refreshed = await requestTokenRefresh();
 
-    if (refreshed.response.ok) {
+    if (refreshed?.response?.ok) {
       ({ response, data } = await fetchJson(path, options));
     }
   }
 
   if (!response.ok) {
-    throw new Error(data.message || "Request failed");
+    const error = new Error(data.message || "Request failed");
+    error.status = response.status;
+    error.data = data;
+    throw error;
   }
 
   return data;

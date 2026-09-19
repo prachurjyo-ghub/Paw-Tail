@@ -654,6 +654,7 @@ export default function ProductEditorDashboard({ mode = "create" }) {
                           width={88}
                           height={88}
                           unoptimized
+                          priority
                           className="h-20 w-20 rounded-lg object-cover"
                         />
                         <button
@@ -677,6 +678,7 @@ export default function ProductEditorDashboard({ mode = "create" }) {
                           width={88}
                           height={88}
                           unoptimized
+                          priority
                           className="h-20 w-20 rounded-lg object-cover"
                         />
                         <button
@@ -756,7 +758,7 @@ export default function ProductEditorDashboard({ mode = "create" }) {
                   onChange={() => setIsFeatured((v) => !v)}
                   className="h-4 w-4 accent-[#173F31]"
                 />
-                Product is featured
+                Feature on homepage
               </label>
             </div>
           </div>

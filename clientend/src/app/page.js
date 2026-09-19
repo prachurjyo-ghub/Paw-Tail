@@ -1,26 +1,31 @@
+import AskFarzanaSection from "@/components/AskFarzanaSection";
 import CategoryDealsBanner from "@/components/CategoryDealsBanner";
 import CustomerReviews from "@/components/CustomerReviews";
+import FeaturedProducts from "@/components/FeaturedProducts";
 import HomeBannerCarousel from "@/components/HomeBannerCarousel";
 import PopularBrands from "@/components/PopularBrands";
+import PromoDealsSection from "@/components/PromoDealsSection";
 import ShopByPetType from "@/components/ShopByPetType";
 import SliderBannerCarousel from "@/components/SliderBannerCarousel";
 import WhyChooseUs from "@/components/WhyChooseUs";
-import { fetchBanners, fetchHeroBanners, fetchSliderBanners } from "@/lib/bannerApi";
+import { fetchBanners, fetchSliderBanners } from "@/lib/bannerApi";
 
 export default async function Home() {
-  const [heroBanners, promoBanners, sliderBanners] = await Promise.all([
-    fetchHeroBanners(),
+  const [promoBanners, sliderBanners] = await Promise.all([
     fetchBanners("promo-banner"),
     fetchSliderBanners(),
   ]);
 
   return (
     <main className="bg-white">
-      <HomeBannerCarousel initialBanners={heroBanners} />
+      <HomeBannerCarousel />
       <ShopByPetType />
+      <FeaturedProducts />
+      <PromoDealsSection />
       <PopularBrands />
       <CategoryDealsBanner initialPromoBanners={promoBanners} />
       <WhyChooseUs />
+      <AskFarzanaSection />
       <SliderBannerCarousel initialBanners={sliderBanners} />
       <CustomerReviews />
     </main>

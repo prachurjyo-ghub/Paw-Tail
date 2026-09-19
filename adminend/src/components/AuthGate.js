@@ -1,12 +1,11 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { getCurrentAdmin } from "@/lib/adminApi";
 
 const AuthContext = createContext(null);
-const publicPaths = ["/login"];
 
 export function AuthGate({ children }) {
   const pathname = usePathname();
@@ -14,86 +13,65 @@ export function AuthGate({ children }) {
   const [admin, setAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const isPublicPath = publicPaths.includes(pathname);
+  const cleanPath = useMemo(() => {
+    if (!pathname) return "";
+    return pathname.split("?")[0].replace(/\/+$/, "") || "/";
+  }, [pathname]);
 
-  useEffect(() => {
-    let active = true;
+  const isLoginPath = cleanPath === "/login";
 
-    const redirectTo = (path) => {
-      router.replace(path);
-
-      if (typeof window !== "undefined") {
-        window.setTimeout(() => {
-          if (window.location.pathname !== path) {
-            window.location.replace(path);
-          }
-        }, 250);
-      }
-    };
-
-    if (admin) {
-      setLoading(false);
-
-      if (isPublicPath) {
-        redirectTo("/dashboard");
-      }
-
-      return () => {
-        active = false;
-      };
-    }
-
-    setLoading(true);
-
-    async function checkAuth() {
-      try {
-        const data = await getCurrentAdmin();
-        if (!active) return;
-
-        if (data.user?.role !== "admin") {
-          setAdmin(null);
-
-          if (!isPublicPath) {
-            redirectTo("/login");
-          }
-
-          return;
-        }
-
+  const refreshAdmin = useCallback(async () => {
+    try {
+      const data = await getCurrentAdmin();
+      if (data?.user?.role === "admin") {
         setAdmin(data.user);
-
-        if (isPublicPath) {
-          redirectTo("/dashboard");
-        }
-      } catch {
-        if (!active) return;
-        setAdmin(null);
-
-        if (!isPublicPath) {
-          redirectTo("/login");
-        }
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
+        return data.user;
       }
+      setAdmin(null);
+      return null;
+    } catch {
+      setAdmin(null);
+      return null;
+    } finally {
+      setLoading(false);
     }
+  }, []);
 
-    checkAuth();
+  // Initial authentication check on mount
+  useEffect(() => {
+    refreshAdmin();
+  }, [refreshAdmin]);
 
-    return () => {
-      active = false;
-    };
-  }, [admin, isPublicPath, router]);
+  // Route protection effect
+  useEffect(() => {
+    if (loading) return;
+
+    if (!admin && !isLoginPath) {
+      router.replace("/login");
+    } else if (admin && isLoginPath) {
+      router.replace("/dashboard");
+    }
+  }, [admin, isLoginPath, loading, router]);
 
   const value = useMemo(
     () => ({
       admin,
       setAdmin,
+      refreshAdmin,
+      loading,
     }),
-    [admin]
+    [admin, refreshAdmin, loading]
   );
 
+  // If user is on /login, render children immediately without blocking screen
+  if (isLoginPath) {
+    if (admin) {
+      return null; // Will redirect to /dashboard
+    }
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  }
+
+  // If on a protected route and still loading auth check, show loading indicator
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-mainSoft/60">
@@ -104,11 +82,8 @@ export function AuthGate({ children }) {
     );
   }
 
-  if (!admin && !isPublicPath) {
-    return null;
-  }
-
-  if (admin && isPublicPath) {
+  // If not logged in and not on login page, render nothing while redirecting
+  if (!admin) {
     return null;
   }
 
@@ -119,7 +94,7 @@ export function useAdminAuth() {
   const context = useContext(AuthContext);
 
   if (!context) {
-    return { admin: null, setAdmin: () => {} };
+    return { admin: null, setAdmin: () => {}, refreshAdmin: async () => null, loading: false };
   }
 
   return context;

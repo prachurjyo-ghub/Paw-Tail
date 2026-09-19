@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useToast } from "@/components/ui/toast";
+import { useAdminAuth } from "@/components/AuthGate";
 import { loginAdmin } from "@/lib/adminApi";
 import { saveAdminSession } from "@/lib/adminSession";
 
@@ -16,6 +17,7 @@ const initialForm = {
 export default function LoginPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { setAdmin } = useAdminAuth();
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -71,6 +73,7 @@ export default function LoginPage() {
           .toUpperCase(),
       });
 
+      setAdmin(user);
       showToast({ tone: "success", title: "Logged in." });
       router.replace("/dashboard");
     } catch (error) {

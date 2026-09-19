@@ -413,26 +413,6 @@ export default function PromoCodesPage() {
   const [userOptions, setUserOptions] = useState([]);
   const createRef = useRef(null);
 
-  useEffect(() => {
-    let alive = true;
-
-    adminApi("/promo-codes/get-promo-codes")
-      .then((data) => {
-        if (!alive) return;
-        setPromoCodes((data.promoCodes || []).map(normalizePromoCode));
-      })
-      .catch((error) => {
-        showToast({ tone: "danger", title: error.message || "Failed to load promo codes." });
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-
-    return () => {
-      alive = false;
-    };
-  }, [showToast]);
-
   const summary = useMemo(() => {
     const active = promoCodes.filter((item) => item.isActive).length;
     return { active, total: promoCodes.length };

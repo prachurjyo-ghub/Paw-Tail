@@ -5,11 +5,13 @@ import { useState } from "react";
 
 import BrandLogo from "@/components/BrandLogo";
 import { useToast } from "@/components/ui/toast";
+import { useAdminAuth } from "@/components/AuthGate";
 import { loginAdmin } from "@/lib/adminApi";
 
 export default function LoginForm() {
   const router = useRouter();
   const { showToast } = useToast();
+  const { setAdmin } = useAdminAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,7 +21,10 @@ export default function LoginForm() {
     setLoading(true);
 
     try {
-      await loginAdmin({ email, password });
+      const data = await loginAdmin({ email, password });
+      if (data?.user) {
+        setAdmin(data.user);
+      }
       showToast({
         title: "Login successful",
         description: "Welcome back to Paw Tail admin.",
