@@ -3,18 +3,27 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import DashboardShell from "@/components/DashboardShell";
 import { getApiBaseUrl } from "@/lib/apiBaseUrl";
+import {
+  getMediaRetentionToken,
+  resolveMediaUrl,
+} from "@/lib/media";
 import { useToast } from "@/components/ui/toast";
 import { adminApi } from "@/lib/adminApi";
 
 const REQUEST_TIMEOUT_MS = 12000;
+const MEDIA_MUTATION_TIMEOUT_MS = 120000;
 
-const fetchWithTimeout = async (url, options = {}) => {
+const fetchWithTimeout = async (
+  url,
+  options = {},
+  timeoutMs = REQUEST_TIMEOUT_MS
+) => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     return await fetch(url, {
@@ -29,20 +38,13 @@ const fetchWithTimeout = async (url, options = {}) => {
 
 const getApiErrorMessage = (error, fallback) => {
   if (error?.name === "AbortError") {
-    return "Backend request timeout. Please verify backend is running on port 3000.";
+    return "The request took too long. Check the backend connection and try smaller images.";
   }
   return error?.message || fallback;
 };
 
-const getAssetOrigin = (apiBaseUrl) => apiBaseUrl.replace(/\/api\/v1\/?$/, "");
-
-const resolveImageUrl = (apiBaseUrl, imagePath) => {
-  if (!imagePath) return "";
-  if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
-    return imagePath;
-  }
-  return `${getAssetOrigin(apiBaseUrl)}${imagePath.startsWith("/") ? imagePath : `/${imagePath}`}`;
-};
+const resolveImageUrl = (_apiBaseUrl, imagePath) =>
+  resolveMediaUrl(imagePath, { legacyFolder: "products", width: 500 });
 
 const emptyForm = {
   name: "",
@@ -121,6 +123,7 @@ function SelectField({ label, value, onChange, options, placeholder, disabled, n
 
 export default function ProductEditorDashboard({ mode = "create" }) {
   const isUpdate = mode === "update";
+  const router = useRouter();
   const searchParams = useSearchParams();
   const slug = searchParams.get("slug");
   const { showToast } = useToast();
@@ -139,8 +142,6 @@ export default function ProductEditorDashboard({ mode = "create" }) {
   const [animals, setAnimals] = useState([]);
   const [brands, setBrands] = useState([]);
   const [variants, setVariants] = useState([]);
-
-  const hasConfiguredVariants = variants.some((variant) => variant.label.trim());
 
   const imagePreviews = useMemo(
     () => imageFiles.map((file) => URL.createObjectURL(file)),
@@ -296,10 +297,10 @@ export default function ProductEditorDashboard({ mode = "create" }) {
     }
 
     const activeVariants = variants.filter((variant) => variant.label.trim());
-    if (!hasConfiguredVariants && !form.stockQuantity) {
+    if (form.stockQuantity === "" || Number(form.stockQuantity) < 0) {
       showToast({
         tone: "warning",
-        title: "Stock quantity is required when no size options are added.",
+        title: "Base pack stock quantity is required.",
       });
       return;
     }
@@ -327,11 +328,6 @@ export default function ProductEditorDashboard({ mode = "create" }) {
     try {
       const basePrice = Number(form.price);
       const variantPayload = buildVariantsPayload(activeVariants, basePrice);
-      const totalVariantStock = variantPayload.reduce(
-        (total, variant) => total + Number(variant.stockQuantity || 0),
-        0
-      );
-
       const formData = new FormData();
       formData.append("name", form.name.trim());
       formData.append("description", form.description.trim());
@@ -347,9 +343,7 @@ export default function ProductEditorDashboard({ mode = "create" }) {
         String(
           markStockOut
             ? 0
-            : variantPayload.length
-              ? totalVariantStock
-              : Number(form.stockQuantity)
+            : Number(form.stockQuantity)
         )
       );
       formData.append("tags", form.tags);
@@ -359,7 +353,12 @@ export default function ProductEditorDashboard({ mode = "create" }) {
       formData.append("isOfferEnabled", String(offerEnabled));
 
       if (isUpdate) {
-        formData.append("existingImages", existingImages.join(", "));
+        formData.append(
+          "existingImages",
+          JSON.stringify(
+            existingImages.map(getMediaRetentionToken).filter(Boolean)
+          )
+        );
       }
 
       imageFiles.forEach((file) => {
@@ -373,7 +372,8 @@ export default function ProductEditorDashboard({ mode = "create" }) {
         {
           method: isUpdate ? "PATCH" : "POST",
           body: formData,
-        }
+        },
+        MEDIA_MUTATION_TIMEOUT_MS
       );
 
       const data = await response.json();
@@ -394,6 +394,10 @@ export default function ProductEditorDashboard({ mode = "create" }) {
         tone: "success",
         title: isUpdate ? "Product updated successfully." : "Product created successfully.",
       });
+
+      if (!isUpdate) {
+        router.replace("/dashboard/products");
+      }
     } catch (error) {
       showToast({
         tone: "danger",
@@ -418,7 +422,7 @@ export default function ProductEditorDashboard({ mode = "create" }) {
 
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-4">
-          <div className="rounded-[24px] border border-neutral-200 bg-white p-5 shadow-lg shadow-main/5">
+          <div className="admin-page-head rounded-[24px] border border-neutral-200 bg-white p-5 shadow-lg shadow-main/5">
             <p className="text-sm font-black uppercase tracking-[0.35em] text-main/70">
               Products
             </p>
@@ -512,8 +516,7 @@ export default function ProductEditorDashboard({ mode = "create" }) {
                     className="h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-300 focus:border-main"
                   />
                 </Field>
-                {!hasConfiguredVariants ? (
-                  <Field label="Stock Quantity">
+                  <Field label="Base Pack Stock">
                     <input
                       name="stockQuantity"
                       value={form.stockQuantity}
@@ -525,7 +528,6 @@ export default function ProductEditorDashboard({ mode = "create" }) {
                       className="h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-300 focus:border-main disabled:cursor-not-allowed disabled:bg-slate-50"
                     />
                   </Field>
-                ) : null}
                 <Field label="Tags">
                   <input
                     name="tags"
@@ -636,7 +638,7 @@ export default function ProductEditorDashboard({ mode = "create" }) {
                 </label>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   multiple
                   onChange={handleImageChange}
                   className="mt-1.5 block w-full text-sm font-semibold text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-mainSoft file:px-3 file:py-2 file:text-sm file:font-black file:text-main"
@@ -645,7 +647,7 @@ export default function ProductEditorDashboard({ mode = "create" }) {
                   <div className="mt-3 flex flex-wrap gap-3">
                     {existingImages.map((imagePath) => (
                       <div
-                        key={imagePath}
+                        key={getMediaRetentionToken(imagePath)}
                         className="relative overflow-hidden rounded-xl border border-neutral-200 bg-mainSoft/30 p-2"
                       >
                         <Image
@@ -653,8 +655,6 @@ export default function ProductEditorDashboard({ mode = "create" }) {
                           alt="Product image"
                           width={88}
                           height={88}
-                          unoptimized
-                          priority
                           className="h-20 w-20 rounded-lg object-cover"
                         />
                         <button
@@ -677,8 +677,7 @@ export default function ProductEditorDashboard({ mode = "create" }) {
                           alt="New product image"
                           width={88}
                           height={88}
-                          unoptimized
-                          priority
+                          unoptimized={preview.startsWith("blob:")}
                           className="h-20 w-20 rounded-lg object-cover"
                         />
                         <button
@@ -712,7 +711,7 @@ export default function ProductEditorDashboard({ mode = "create" }) {
                     alt="Product preview"
                     width={176}
                     height={176}
-                    unoptimized
+                    unoptimized={previewImage.startsWith("blob:")}
                     className="h-40 w-40 rounded-lg object-contain"
                   />
                 ) : (
@@ -769,7 +768,8 @@ export default function ProductEditorDashboard({ mode = "create" }) {
             </p>
             <ul className="mt-3 space-y-2 text-sm font-semibold leading-6 text-slate-500">
               <li>Add size or weight options with separate prices and stock counts.</li>
-              <li>Without options, use the base price and stock quantity fields.</li>
+              <li>The base pack stays purchasable with its base price and stock.</li>
+              <li>Extra size options use their own exact prices and stock counts.</li>
             </ul>
           </div>
 

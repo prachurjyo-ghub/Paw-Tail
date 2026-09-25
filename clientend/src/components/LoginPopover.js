@@ -57,10 +57,11 @@ export default function LoginPopover({
   onForgotPassword,
   onSuccess,
   description,
+  initialMode = "login",
 }) {
   const { login, signup, verifyEmail } = useAuth();
 
-  const [mode, setMode] = useState("login");
+  const [mode, setMode] = useState(initialMode);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
@@ -86,16 +87,25 @@ export default function LoginPopover({
   }, [open, onClose]);
 
   useEffect(() => {
-    if (!open) {
-      setError("");
-      setAttemptedEmail("");
-      setVerificationEmail("");
-      setMode("login");
-      setShowPassword(false);
-      setShowConfirmPassword(false);
-      setIsSubmitting(false);
-    }
-  }, [open]);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+
+      setMode(initialMode || "login");
+      if (!open) {
+        setError("");
+        setAttemptedEmail("");
+        setVerificationEmail("");
+        setShowPassword(false);
+        setShowConfirmPassword(false);
+        setIsSubmitting(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, initialMode]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -168,7 +178,11 @@ export default function LoginPopover({
 
   const active = copy[mode];
   const activeDescription =
-    mode === "login" && description ? description : active.description;
+    mode === "login" && description
+      ? description
+      : mode === "signup" && description
+        ? description
+        : active.description;
 
   return (
     <div

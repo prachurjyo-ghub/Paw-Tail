@@ -271,6 +271,8 @@ export default function OrderHistoryDashboard({
   const [allOrderRows, setAllOrderRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
+  const [mobileStatusFilter, setMobileStatusFilter] = useState("All");
+  const [paymentFilter, setPaymentFilter] = useState("All");
 
   const orderRows = useMemo(
     () => filterOrdersByMode(allOrderRows, rowFilter),
@@ -279,17 +281,24 @@ export default function OrderHistoryDashboard({
 
   const filteredRows = useMemo(() => {
     const query = searchText.trim().toLowerCase();
-    if (!query) return orderRows;
-
-    return orderRows.filter(
-      (order) =>
+    return orderRows.filter((order) => {
+      const matchesStatus =
+        mobileStatusFilter === "All" ||
+        (mobileStatusFilter === "Due"
+          ? order.billStatus !== "Paid"
+          : order.orderStatus === mobileStatusFilter);
+      const matchesSearch =
+        !query ||
         order.id.toLowerCase().includes(query) ||
         order.customer.toLowerCase().includes(query) ||
         order.payment.toLowerCase().includes(query) ||
         order.orderStatus.toLowerCase().includes(query) ||
-        order.billStatus.toLowerCase().includes(query)
-    );
-  }, [orderRows, searchText]);
+        order.billStatus.toLowerCase().includes(query);
+      const matchesPayment =
+        paymentFilter === "All" || order.billStatus === paymentFilter;
+      return matchesStatus && matchesSearch && matchesPayment;
+    });
+  }, [orderRows, searchText, mobileStatusFilter, paymentFilter]);
 
   const displayCards = editableStatus
     ? getOrderDashboardCards(orderRows)
@@ -313,7 +322,7 @@ export default function OrderHistoryDashboard({
     };
 
     loadOrders();
-  }, []);
+  }, [showToast]);
 
   async function handleOrderStatusChange(order, nextStatus) {
     if (nextStatus === "Delivered" && !canMarkOrderDelivered(order)) {
@@ -378,16 +387,44 @@ export default function OrderHistoryDashboard({
     }
   }
 
+  function exportOrders() {
+    const escapeCell = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const header = ["Order ID", "Customer", "Payment method", "Payment status", "Total", "Order status", "Date"];
+    const rows = filteredRows.map((order) => [
+      order.id,
+      order.customer,
+      order.payment,
+      order.billStatus,
+      order.total,
+      order.orderStatus,
+      order.date,
+    ]);
+    const csv = [header, ...rows].map((row) => row.map(escapeCell).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${heading.toLowerCase().replaceAll(" ", "-")}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <DashboardShell activeItem={activeItem}>
-      <div className="rounded-[28px] border border-neutral-200 bg-white px-6 py-7 shadow-lg shadow-main/5 md:px-8">
-        <p className="text-sm font-black uppercase tracking-[0.35em] text-main/70">Orders</p>
-        <h1 className="mt-3 text-3xl font-black tracking-tight text-main md:text-4xl">{heading}</h1>
-        <p className="mt-4 max-w-3xl text-sm font-semibold leading-6 text-slate-400 md:text-base">
-          {pageDescription}
-        </p>
+      <div className="rounded-[22px] border border-neutral-200 bg-white px-4 py-5 shadow-lg shadow-main/5 md:rounded-[28px] md:px-8 md:py-7">
+        <div className="lg:flex lg:items-start lg:justify-between lg:gap-3">
+          <div>
+            <p className="text-sm font-black uppercase tracking-[0.35em] text-main/70">Orders</p>
+            <h1 className="mt-2 text-2xl font-black tracking-tight text-main md:mt-3 md:text-4xl">{heading}</h1>
+            <p className="mt-4 max-w-3xl text-sm font-semibold leading-6 text-slate-400 md:text-base">
+              {pageDescription}
+            </p>
+          </div>
+          <button type="button" onClick={exportOrders} className="hidden h-[30px] items-center gap-1.5 rounded-[7px] border border-[#e4ece7] bg-white px-3 text-[11.5px] font-semibold text-[#3d554b] hover:bg-[#eef7f2] lg:inline-flex">
+            <Icon name="download" className="h-3.5 w-3.5" /> Export
+          </button>
+        </div>
 
-        <label className="mt-7 flex h-14 items-center rounded-2xl border border-neutral-200 bg-white px-5 text-slate-400 shadow-inner shadow-main/5">
+        <label className="mt-5 flex h-12 items-center rounded-xl border border-neutral-200 bg-white px-4 text-slate-400 shadow-inner shadow-main/5 md:mt-7 md:h-14 md:rounded-2xl md:px-5 lg:hidden">
           <Icon name="search" className="h-5 w-5" />
           <input
             type="search"
@@ -398,15 +435,29 @@ export default function OrderHistoryDashboard({
             className="ml-3 w-full bg-transparent text-sm font-bold text-slate-700 outline-none placeholder:text-slate-300"
           />
         </label>
+        <div className="mt-3 hidden items-center gap-2 border-t border-[#e4ece7] pt-3 lg:flex">
+          <span className="mr-0.5 text-[10.5px] font-bold uppercase tracking-[0.09em] text-[#8a9e96]">Filters</span>
+          <select value={mobileStatusFilter} onChange={(event) => setMobileStatusFilter(event.target.value)} className="h-[30px] rounded-[7px] border border-[#e4ece7] bg-white px-2.5 text-xs text-[#3d554b] outline-none">
+            {(editableStatus
+              ? ["All", "Pending", "Processing", "Shipping"]
+              : ["All", "Delivered", "Cancelled"]
+            ).map((status) => <option key={status} value={status}>{status === "All" ? "All Status" : status}</option>)}
+          </select>
+          <select value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)} className="h-[30px] rounded-[7px] border border-[#e4ece7] bg-white px-2.5 text-xs text-[#3d554b] outline-none">
+            <option value="All">All Payment</option>
+            <option value="Paid">Paid</option>
+            <option value="Due">Unpaid</option>
+          </select>
+        </div>
       </div>
 
-      <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-5">
+      <div className="mt-3 grid grid-cols-2 gap-2 md:mt-8 md:grid-cols-2 md:gap-5 xl:grid-cols-5">
         {displayCards.map((card) => (
-          <article key={card.title} className={`relative min-h-40 overflow-hidden rounded-[24px] border border-neutral-200 bg-white p-6 shadow-lg shadow-main/5 ring-1 ${card.ring}`}>
+          <article key={card.title} className={`relative min-h-0 overflow-hidden rounded-2xl border border-neutral-200 bg-white p-3 shadow-lg shadow-main/5 ring-1 md:min-h-40 md:rounded-[24px] md:p-6 ${displayCards.length % 2 ? "last:col-span-2 lg:last:col-span-1" : ""} ${card.ring}`}>
             <div className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${card.accent}`} />
-            <p className="text-sm font-extrabold text-slate-500">{card.title}</p>
-            <p className="mt-5 text-3xl font-black tracking-tight text-slate-950">{card.value}</p>
-            <p className="mt-4 text-sm font-semibold leading-6 text-slate-400">{card.description}</p>
+            <p className="truncate text-xs font-extrabold text-slate-500 md:text-sm">{card.title}</p>
+            <p className="mt-2 text-2xl font-black tracking-tight text-slate-950 md:mt-5 md:text-3xl">{card.value}</p>
+            <p className="mt-1 line-clamp-2 text-[11px] font-semibold leading-4 text-slate-400 md:mt-4 md:text-sm md:leading-6">{card.description}</p>
           </article>
         ))}
       </div>
@@ -417,7 +468,102 @@ export default function OrderHistoryDashboard({
         </div>
       ) : null}
 
-      <div className="mt-8 overflow-hidden rounded-[28px] border border-neutral-200 bg-white shadow-lg shadow-main/5">
+      <div className="-mx-3 mt-4 border-y border-slate-200 bg-white px-3 py-3 md:hidden">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {(editableStatus
+            ? ["All", "Processing", "Pending", "Shipping", "Due"]
+            : ["All", "Delivered", "Cancelled", "Due"]
+          ).map((status) => (
+            <button
+              type="button"
+              key={status}
+              onClick={() => setMobileStatusFilter(status)}
+              className={`shrink-0 rounded-full px-4 py-2 text-xs font-black transition ${
+                mobileStatusFilter === status
+                  ? "bg-main text-white"
+                  : "border border-slate-200 bg-white text-slate-500"
+              }`}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-3 md:hidden">
+        {filteredRows.map((order) => (
+          <article key={order.mongoId} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-main/5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-black text-main">{order.id}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-400">{order.date}</p>
+              </div>
+              <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                <Badge tone={orderStatusTone(order.orderStatus)}>{order.orderStatus}</Badge>
+                <Badge tone={order.billStatus === "Paid" ? "green" : "yellow"}>{order.billStatus}</Badge>
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-end justify-between gap-3 border-t border-slate-100 pt-4">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black text-slate-800">{order.customer}</p>
+                <p className="mt-1 truncate text-xs font-semibold text-slate-400">{order.payment}</p>
+              </div>
+              <p className="shrink-0 text-base font-black text-slate-900">{order.total}</p>
+            </div>
+
+            {editableStatus || editablePayment ? (
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {editableStatus ? (
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    Order status
+                    <select
+                      aria-label={`Update status for ${order.id}`}
+                      value={order.orderStatus}
+                      onChange={(event) => handleOrderStatusChange(order, event.target.value)}
+                      className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-black normal-case tracking-normal text-main outline-none"
+                    >
+                      {orderStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                    </select>
+                  </label>
+                ) : null}
+                {editablePayment ? (
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    Payment
+                    <select
+                      aria-label={`Update payment for ${order.id}`}
+                      value={order.billStatus === "Paid" ? "Paid" : "Pending"}
+                      onChange={(event) => handleOrderPaymentChange(order, event.target.value)}
+                      className="mt-1 h-10 w-full rounded-xl border border-slate-200 bg-white px-2 text-xs font-black normal-case tracking-normal text-main outline-none"
+                    >
+                      {paymentStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+            ) : null}
+
+            {viewBasePath ? (
+              <Link href={`${viewBasePath}/${order.mongoId}`} className="mt-4 flex h-10 items-center justify-center rounded-xl bg-main text-xs font-black text-white">
+                View order
+              </Link>
+            ) : (
+              <button type="button" onClick={() => setSelectedOrder(order)} className="mt-4 h-10 w-full rounded-xl bg-main text-xs font-black text-white">
+                View details
+              </button>
+            )}
+          </article>
+        ))}
+        {!loading && filteredRows.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm font-bold text-slate-400">No orders found.</div>
+        ) : null}
+      </div>
+
+      <div className="mt-8 hidden overflow-hidden rounded-[28px] border border-neutral-200 bg-white shadow-lg shadow-main/5 md:block">
+        <div className="hidden items-center justify-between border-b border-[#e4ece7] bg-gradient-to-b from-[#fbfdfc] to-white px-4 py-2.5 lg:flex">
+          <h3 className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7f78]">{editableStatus ? "Order List" : "History Log"}</h3>
+          <span className="text-[11px] text-[#6b7f78]">{filteredRows.length} orders</span>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[980px] border-collapse text-left">
             <thead className="bg-white">

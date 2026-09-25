@@ -11,9 +11,14 @@ const deleteImageFile = (imagePath, folderName) => {
     return;
   }
 
-  const filePath = path.join(process.cwd(), imagePath.replace(/^\//, ""));
+  const uploadsRoot = path.resolve(__dirname, "..", "..", "uploads");
+  const relativePath = imagePath.replace(/^\/uploads\//, "");
+  const filePath = path.resolve(uploadsRoot, relativePath);
 
-  if (fs.existsSync(filePath)) {
+  if (
+    filePath.startsWith(`${uploadsRoot}${path.sep}`) &&
+    fs.existsSync(filePath)
+  ) {
     fs.unlinkSync(filePath);
   }
 };

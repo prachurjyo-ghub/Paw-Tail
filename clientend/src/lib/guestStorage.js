@@ -46,7 +46,9 @@ export const buildGuestCartItem = (product, variant, quantity) => {
   const finalUnitPrice =
     typeof variant?.price === "number"
       ? Number(variant.price)
-      : Number(basePrice || 0) + Number(variant?.priceAdjustment || 0);
+      : variant
+        ? Number(product.price || 0) + Number(variant.priceAdjustment || 0)
+        : Number(basePrice || 0);
   const stockQuantity = variant?.stockQuantity ?? product.stockQuantity ?? 0;
 
   return {

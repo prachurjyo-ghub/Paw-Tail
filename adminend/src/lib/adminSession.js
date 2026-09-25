@@ -2,7 +2,7 @@ export const ADMIN_SESSION_KEY = "adminflow-admin-session";
 
 export const DEFAULT_ADMIN_PROFILE = {
   name: "Admin User",
-  email: "admin@example.com",
+  email: "",
   phone: "",
   role: "Administrator",
   title: "Administrator",

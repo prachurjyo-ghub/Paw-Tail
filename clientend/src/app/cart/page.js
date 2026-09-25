@@ -14,11 +14,10 @@ import {
 import { useCart } from "@/components/CartProvider";
 import Container from "@/components/Container";
 import LoginPopover from "@/components/LoginPopover";
+import { CartPageSkeleton } from "@/components/skeletons/StorefrontSkeletons";
 import { useAuth } from "@/context/AuthContext";
 import { saveCheckoutPrefs } from "@/lib/checkoutStorage";
-
-const apiOrigin =
-  process.env.NEXT_PUBLIC_API_ORIGIN || "http://localhost:3000";
+import { resolveMediaUrl } from "@/lib/media";
 
 const formatPrice = (value) =>
   new Intl.NumberFormat("en-BD", {
@@ -28,6 +27,8 @@ const formatPrice = (value) =>
   }).format(Number(value || 0));
 
 const getItemDiscount = (item) => {
+  if (item.variant) return null;
+
   const regularPrice = Number(item.product?.price);
   const discountPrice = Number(item.product?.discountPrice);
 
@@ -52,17 +53,9 @@ const getItemDiscount = (item) => {
   };
 };
 
-const getImageUrl = (src) => {
-  if (!src) {
-    return "/window.svg";
-  }
-
-  if (src.startsWith("http://") || src.startsWith("https://")) {
-    return src;
-  }
-
-  return `${apiOrigin}${src.startsWith("/") ? src : `/${src}`}`;
-};
+const getImageUrl = (src) =>
+  resolveMediaUrl(src, { legacyFolder: "products", width: 320 }) ||
+  "/window.svg";
 
 export default function CartPage() {
   const router = useRouter();
@@ -95,26 +88,43 @@ export default function CartPage() {
   }, [cartItems.length, loaded, user]);
 
   useEffect(() => {
+    let cancelled = false;
+
     if (!cartItems.length) {
-      setSummary(null);
-      return;
+      queueMicrotask(() => {
+        if (!cancelled) setSummary(null);
+      });
+      return () => {
+        cancelled = true;
+      };
     }
 
-    setIsCalculating(true);
-    calculateCart({
-      promoCode: appliedPromoCode,
-      deliveryZone,
-    })
-      .then((nextSummary) => {
-        setSummary(nextSummary);
-        setSummaryMessage(nextSummary?.voucherMessage || "");
+    queueMicrotask(() => {
+      if (cancelled) return;
+
+      setIsCalculating(true);
+      calculateCart({
+        promoCode: appliedPromoCode,
+        deliveryZone,
       })
-      .catch((error) => {
-        setSummaryMessage(error.message || "Could not calculate cart");
-      })
-      .finally(() => {
-        setIsCalculating(false);
-      });
+        .then((nextSummary) => {
+          if (cancelled) return;
+          setSummary(nextSummary);
+          setSummaryMessage(nextSummary?.voucherMessage || "");
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setSummaryMessage(error.message || "Could not calculate cart");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setIsCalculating(false);
+        });
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [appliedPromoCode, calculateCart, cartItems.length, cartSubtotal, deliveryZone]);
 
   const handleApplyVoucher = () => {
@@ -150,6 +160,10 @@ export default function CartPage() {
     router.push("/checkout");
   };
 
+  if (!loaded || isLoading) {
+    return <CartPageSkeleton />;
+  }
+
   return (
     <main className="bg-white">
       <Container className="py-8 lg:py-12">
@@ -159,12 +173,6 @@ export default function CartPage() {
           </p>
           <h1 className="text-3xl font-black text-neutral-950">Your Cart</h1>
         </div>
-
-        {!loaded || isLoading ? (
-          <div className="mt-8 rounded-lg border border-neutral-200 p-8 text-neutral-600">
-            Loading cart...
-          </div>
-        ) : null}
 
         {loaded && !isLoading && cartItems.length === 0 ? (
           <div className="mt-8 rounded-lg border border-neutral-200 p-8 text-center">

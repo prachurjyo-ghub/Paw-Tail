@@ -185,7 +185,7 @@ export function WishlistProvider({ children }) {
     if (!loaded) return;
 
     if (!user) {
-      loadGuestWishlist();
+      queueMicrotask(loadGuestWishlist);
       return;
     }
 
@@ -199,7 +199,7 @@ export function WishlistProvider({ children }) {
       .finally(() => {
         isSyncingGuestWishlist.current = false;
       });
-  }, [fetchWishlist, loadGuestWishlist, loaded, syncGuestWishlistToServer, user?.id]);
+  }, [fetchWishlist, loadGuestWishlist, loaded, syncGuestWishlistToServer, user]);
 
   const value = useMemo(
     () => ({

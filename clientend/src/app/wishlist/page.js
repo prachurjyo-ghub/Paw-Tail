@@ -5,6 +5,7 @@ import Link from "next/link";
 import { HiOutlineHeart, HiTrash } from "react-icons/hi2";
 
 import Container from "@/components/Container";
+import { WishlistPageSkeleton } from "@/components/skeletons/StorefrontSkeletons";
 import { useWishlist } from "@/components/WishlistProvider";
 import { getProductImageUrl } from "@/lib/productApi";
 
@@ -25,6 +26,10 @@ export default function WishlistPage() {
     isLoading,
     isReady,
   } = useWishlist();
+
+  if (!isReady || isLoading) {
+    return <WishlistPageSkeleton />;
+  }
 
   return (
     <main className="bg-white">
@@ -49,12 +54,6 @@ export default function WishlistPage() {
             </button>
           ) : null}
         </div>
-
-        {!isReady || isLoading ? (
-          <div className="mt-8 rounded-lg border border-neutral-200 p-8 text-neutral-600">
-            Loading wishlist...
-          </div>
-        ) : null}
 
         {isReady && !isLoading && wishlistItems.length === 0 ? (
           <div className="mt-8 rounded-lg border border-neutral-200 p-8 text-center">
@@ -95,7 +94,6 @@ export default function WishlistPage() {
                       alt={item.name}
                       fill
                       sizes="(max-width: 768px) 50vw, 25vw"
-                      unoptimized
                       className="object-contain p-4 transition-transform duration-300 group-hover:scale-105"
                     />
                   </Link>

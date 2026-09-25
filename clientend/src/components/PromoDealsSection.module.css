@@ -100,6 +100,16 @@
   gap: 20px;
 }
 
+.ticketsSingle {
+  grid-template-columns: 1fr;
+}
+
+.ticketsSingle .tw {
+  max-width: 920px;
+  margin-inline: auto;
+  width: 100%;
+}
+
 .tw {
   position: relative;
   transition: transform 0.45s var(--pt-ease);

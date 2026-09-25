@@ -8,6 +8,7 @@ import { useSearchParams } from "next/navigation";
 import DashboardShell from "@/components/DashboardShell";
 import { getApiBaseUrl } from "@/lib/apiBaseUrl";
 import { adminApi } from "@/lib/adminApi";
+import { resolveMediaUrl } from "@/lib/media";
 import { useToast } from "@/components/ui/toast";
 
 const REQUEST_TIMEOUT_MS = 12000;
@@ -34,15 +35,8 @@ const getApiErrorMessage = (error, fallback) => {
   return error?.message || fallback;
 };
 
-const getAssetOrigin = (apiBaseUrl) => apiBaseUrl.replace(/\/api\/v1\/?$/, "");
-
-const resolveImageUrl = (apiBaseUrl, imagePath) => {
-  if (!imagePath) return "";
-  if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
-    return imagePath;
-  }
-  return `${getAssetOrigin(apiBaseUrl)}${imagePath.startsWith("/") ? imagePath : `/${imagePath}`}`;
-};
+const resolveImageUrl = (_apiBaseUrl, imagePath) =>
+  resolveMediaUrl(imagePath, { legacyFolder: "brands", width: 500 });
 
 const emptyForm = {
   name: "",
@@ -256,7 +250,7 @@ export default function CreateBrandDashboard({ mode = "create" }) {
         </Link>
       </div>
 
-      <div className="rounded-[24px] border border-neutral-200 bg-white px-5 py-5 shadow-lg shadow-main/5 md:px-6">
+      <div className="admin-page-head rounded-[24px] border border-neutral-200 bg-white px-5 py-5 shadow-lg shadow-main/5 md:px-6">
         <p className="text-sm font-black uppercase tracking-[0.35em] text-main/70">
           Brands
         </p>
@@ -344,7 +338,7 @@ export default function CreateBrandDashboard({ mode = "create" }) {
               </label>
               <input
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp"
                 onChange={handleImageChange}
                 className="mt-1.5 block w-full text-sm font-semibold text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-mainSoft file:px-3 file:py-2 file:text-sm file:font-black file:text-main"
               />
@@ -355,7 +349,7 @@ export default function CreateBrandDashboard({ mode = "create" }) {
                     alt="Brand preview"
                     width={120}
                     height={120}
-                    unoptimized
+                    unoptimized={shownImage.startsWith("blob:")}
                     className="h-28 w-28 rounded-lg object-cover"
                   />
                 </div>

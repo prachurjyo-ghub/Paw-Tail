@@ -1,5 +1,6 @@
 const Brand = require("../../models/Brand");
-const { deleteImageFile } = require("../../utils/imageFiles");
+const { mediaService } = require("../../services/mediaService");
+const { cleanupOldMedia } = require("../../utils/media");
 
 const normalizeAnimalNames = (value) => {
   if (Array.isArray(value)) {
@@ -38,17 +39,14 @@ const getBrands = async (req, res, next) => {
 };
 
 const createBrand = async (req, res, next) => {
+  let uploadedImage = null;
+  let databaseSaved = false;
+
   try {
-    const { name, animalNames, image } = req.body;
-    const uploadedImage = req.file ? `/uploads/brands/${req.file.filename}` : null;
+    const { name, animalNames } = req.body;
     const trimmedName = name?.trim();
-    const trimmedImage = typeof image === "string" ? image.trim() : "";
 
     if (!trimmedName) {
-      if (req.file) {
-        deleteImageFile(`/uploads/brands/${req.file.filename}`, "brands");
-      }
-
       return res.status(400).json({
         success: false,
         message: "Brand name is required",
@@ -64,21 +62,22 @@ const createBrand = async (req, res, next) => {
     });
 
     if (existingBrand) {
-      if (req.file) {
-        deleteImageFile(`/uploads/brands/${req.file.filename}`, "brands");
-      }
-
       return res.status(400).json({
         success: false,
         message: "Brand already exists",
       });
     }
 
+    if (req.file) {
+      uploadedImage = await mediaService.uploadImage(req.file, "brands");
+    }
+
     const brand = await Brand.create({
       name: trimmedName,
       animalNames: normalizeAnimalNames(animalNames),
-      image: uploadedImage || trimmedImage || null,
+      image: uploadedImage,
     });
+    databaseSaved = true;
 
     return res.status(201).json({
       success: true,
@@ -86,27 +85,29 @@ const createBrand = async (req, res, next) => {
       brand,
     });
   } catch (error) {
-    if (req.file) {
-      deleteImageFile(`/uploads/brands/${req.file.filename}`, "brands");
+    if (uploadedImage && !databaseSaved) {
+      await mediaService
+        .destroyMedia(uploadedImage, {
+          requestId: req.requestId,
+          resource: "brands",
+        })
+        .catch(() => undefined);
     }
     next(error);
   }
 };
 
 const updateBrandBySlug = async (req, res, next) => {
+  let newImage = null;
+  let databaseSaved = false;
+
   try {
     const { slug } = req.params;
-    const { name, animalNames, image } = req.body;
-    const uploadedImage = req.file ? `/uploads/brands/${req.file.filename}` : null;
-    const trimmedImage = typeof image === "string" ? image.trim() : "";
+    const { name, animalNames } = req.body;
 
     const brand = await Brand.findOne({ slug });
 
     if (!brand) {
-      if (req.file) {
-        deleteImageFile(`/uploads/brands/${req.file.filename}`, "brands");
-      }
-
       return res.status(404).json({
         success: false,
         message: "Brand not found",
@@ -124,10 +125,6 @@ const updateBrandBySlug = async (req, res, next) => {
       });
 
       if (existingBrand) {
-        if (req.file) {
-          deleteImageFile(`/uploads/brands/${req.file.filename}`, "brands");
-        }
-
         return res.status(400).json({
           success: false,
           message: "Brand already exists",
@@ -141,17 +138,23 @@ const updateBrandBySlug = async (req, res, next) => {
       brand.animalNames = normalizeAnimalNames(animalNames);
     }
 
-    if (uploadedImage) {
-      deleteImageFile(brand.image, "brands");
-      brand.image = uploadedImage;
-    } else if (trimmedImage) {
-      if (trimmedImage !== brand.image) {
-        deleteImageFile(brand.image, "brands");
-      }
-      brand.image = trimmedImage;
+    const previousImage = brand.image;
+    if (req.file) {
+      newImage = await mediaService.uploadImage(req.file, "brands");
+      brand.image = newImage;
     }
 
     await brand.save();
+    databaseSaved = true;
+
+    if (newImage && previousImage) {
+      await cleanupOldMedia([previousImage], {
+        legacyFolder: "brands",
+        requestId: req.requestId,
+        resource: "brands",
+        entityId: brand._id,
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -159,8 +162,13 @@ const updateBrandBySlug = async (req, res, next) => {
       brand,
     });
   } catch (error) {
-    if (req.file) {
-      deleteImageFile(`/uploads/brands/${req.file.filename}`, "brands");
+    if (newImage && !databaseSaved) {
+      await mediaService
+        .destroyMedia(newImage, {
+          requestId: req.requestId,
+          resource: "brands",
+        })
+        .catch(() => undefined);
     }
     next(error);
   }

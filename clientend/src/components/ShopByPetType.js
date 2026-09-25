@@ -34,7 +34,6 @@ function CategoryCard({ item }) {
             alt={item.name}
             width={48}
             height={48}
-            unoptimized
             className="h-full w-full object-contain p-1"
           />
         ) : (

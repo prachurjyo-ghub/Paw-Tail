@@ -13,6 +13,12 @@ const reviewSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
     rating: {
       type: Number,
       required: true,
@@ -21,7 +27,7 @@ const reviewSchema = new mongoose.Schema(
     },
     comment: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
     },
     reply: {
@@ -34,9 +40,10 @@ const reviewSchema = new mongoose.Schema(
       enum: ["pending", "replied"],
       default: "pending",
     },
-    isActive: {
+    isHidden: {
       type: Boolean,
-      default: true,
+      default: false,
+      index: true,
     },
   },
   {
@@ -44,6 +51,6 @@ const reviewSchema = new mongoose.Schema(
   }
 );
 
-reviewSchema.index({ product: 1, status: 1, createdAt: -1 });
+reviewSchema.index({ product: 1, isHidden: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Review", reviewSchema);

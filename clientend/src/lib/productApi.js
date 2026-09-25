@@ -1,20 +1,14 @@
 import { getApiBaseUrl } from "@/lib/apiBaseUrl";
 import { getSubcategoryBySlug } from "@/lib/catalogUtils";
+import { resolveMediaUrl } from "@/lib/media";
 
 const FETCH_TIMEOUT_MS = 8000;
 
-const apiOrigin = () => {
-  const base = getApiBaseUrl();
-  return base.replace(/\/api\/v1\/?$/, "");
-};
-
-export function getProductImageUrl(src) {
-  if (!src) return null;
-  if (src.startsWith("http://") || src.startsWith("https://")) {
-    return src;
-  }
-  return `${apiOrigin()}${src.startsWith("/") ? src : `/${src}`}`;
-}
+export const getProductImageUrl = (src, options = {}) =>
+  resolveMediaUrl(src, {
+    legacyFolder: "products",
+    ...options,
+  }) || null;
 
 export function mapProductForListingCard(product) {
   const basePrice = Number(product.price) || 0;
@@ -22,17 +16,12 @@ export function mapProductForListingCard(product) {
     (variant) => variant.isActive !== false && (variant.value || variant.name)
   );
 
-  let unitBasePrice =
+  const unitBasePrice =
     typeof product.discountPrice === "number" ? product.discountPrice : basePrice;
-  let price = unitBasePrice;
   let stockQuantity = product.stockQuantity ?? 0;
 
   if (activeVariants.length) {
-    const variantPrices = activeVariants.map(
-      (variant) => unitBasePrice + Number(variant.priceAdjustment || 0)
-    );
-    price = Math.min(...variantPrices);
-    stockQuantity = activeVariants.reduce(
+    stockQuantity = Number(product.stockQuantity || 0) + activeVariants.reduce(
       (total, variant) => total + Number(variant.stockQuantity || 0),
       0
     );
@@ -49,7 +38,7 @@ export function mapProductForListingCard(product) {
     product.discountPercentage > 0 ? `-${Math.round(product.discountPercentage)}%` : null;
 
   const variants = activeVariants.map((variant) => {
-    const variantPrice = unitBasePrice + Number(variant.priceAdjustment || 0);
+    const variantPrice = basePrice + Number(variant.priceAdjustment || 0);
     const variantStock = Number(variant.stockQuantity || 0);
 
     return {
@@ -69,16 +58,25 @@ export function mapProductForListingCard(product) {
     slug: product.slug,
     name: product.name,
     brand: product.brand?.name || "Brand",
-    price,
+    price: unitBasePrice,
+    basePrice,
     oldPrice,
+    compareAtPrice: oldPrice,
+    discountPercentage: Number(product.discountPercentage) || 0,
     discount,
     badges,
-    ratingCount: 0,
-    imageUrl: getProductImageUrl(product.images?.[0]),
+    averageRating: Number(product.averageRating) || 5,
+    reviewCount: Number(product.reviewCount) || 1,
+    isBaselineRating: Boolean(product.isBaselineRating),
+    ratingCount: Number(product.reviewCount) || 1,
+    imageUrl: getProductImageUrl(product.images?.[0], { width: 500 }),
     images: product.images || [],
     discountPrice: product.discountPrice,
     emoji: "📦",
     stockQuantity,
+    tags: product.tags || [],
+    createdAt: product.createdAt || null,
+    isFeatured: Boolean(product.isFeatured),
     variants,
     hasVariants: variants.length > 0,
     isOutOfStock:

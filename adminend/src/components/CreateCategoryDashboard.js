@@ -9,6 +9,7 @@ import DashboardShell from "@/components/DashboardShell";
 import CategoryIcon, { findIconMatch } from "@/components/CategoryIcon";
 import IconPicker from "@/components/IconPicker";
 import { getApiBaseUrl } from "@/lib/apiBaseUrl";
+import { getMediaRetentionToken, resolveMediaUrl } from "@/lib/media";
 import { useToast } from "@/components/ui/toast";
 
 const REQUEST_TIMEOUT_MS = 12000;
@@ -36,15 +37,8 @@ const getApiErrorMessage = (error, fallback) => {
   return error?.message || fallback;
 };
 
-const getAssetOrigin = (apiBaseUrl) => apiBaseUrl.replace(/\/api\/v1\/?$/, "");
-
-const resolveImageUrl = (apiBaseUrl, imagePath) => {
-  if (!imagePath) return "";
-  if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
-    return imagePath;
-  }
-  return `${getAssetOrigin(apiBaseUrl)}${imagePath.startsWith("/") ? imagePath : `/${imagePath}`}`;
-};
+const resolveImageUrl = (_apiBaseUrl, imagePath) =>
+  resolveMediaUrl(imagePath, { legacyFolder: "categories", width: 500 });
 
 export default function CreateCategoryDashboard() {
   const { showToast } = useToast();
@@ -160,7 +154,7 @@ export default function CreateCategoryDashboard() {
         if (imageFile) {
           formData.append("image", imageFile);
         } else if (existingImage) {
-          formData.append("image", existingImage);
+          formData.append("image", getMediaRetentionToken(existingImage));
         }
         formData.append("icon", "🐾");
       }
@@ -210,7 +204,7 @@ export default function CreateCategoryDashboard() {
         </Link>
       </div>
 
-      <div className="rounded-[24px] border border-neutral-200 bg-white px-5 py-5 shadow-lg shadow-main/5 md:px-6">
+      <div className="admin-page-head rounded-[24px] border border-neutral-200 bg-white px-5 py-5 shadow-lg shadow-main/5 md:px-6">
         <p className="text-sm font-black uppercase tracking-[0.35em] text-main/70">
           Categories
         </p>
@@ -323,7 +317,7 @@ export default function CreateCategoryDashboard() {
                 <label className="mt-1.5 flex min-h-28 cursor-pointer items-center justify-center rounded-xl border border-dashed border-main/25 bg-mainSoft/30 px-4 text-center text-sm font-semibold text-slate-600 transition hover:border-main/45 hover:bg-mainSoft/50">
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp"
                     onChange={(event) => setImageFile(event.target.files?.[0] || null)}
                     className="sr-only"
                   />

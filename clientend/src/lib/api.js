@@ -1,5 +1,6 @@
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
+import { API_BASE_URL } from "@/lib/apiBaseUrl";
+
+export { API_BASE_URL };
 
 let refreshPromise = null;
 

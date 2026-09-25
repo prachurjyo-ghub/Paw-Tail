@@ -62,10 +62,14 @@ const getProductImage = (product) => {
 };
 
 const getFinalUnitPrice = (product, variant) => {
+  if (variant) {
+    return Number(product.price || 0) + Number(variant.priceAdjustment || 0);
+  }
+
   const basePrice =
     typeof product.discountPrice === "number" ? product.discountPrice : product.price;
 
-  return Number(basePrice || 0) + Number(variant?.priceAdjustment || 0);
+  return Number(basePrice || 0);
 };
 
 const getStockQuantity = (product, variant) => {
@@ -314,10 +318,6 @@ const addToCart = async (req, res, next) => {
 
     const hasVariants = productHasVariants(product);
     const variant = findVariant(product, variantId);
-
-    if (hasVariants && !variantId) {
-      return sendError(res, 400, "Please select a product variant");
-    }
 
     if (!hasVariants && variantId) {
       return sendError(res, 400, "This product does not have variants");

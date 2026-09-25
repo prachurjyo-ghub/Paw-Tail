@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState, useMemo } from "react";
 
 import Container from "@/components/Container";
+import { PopularBrandsSkeleton } from "@/components/skeletons/StorefrontSkeletons";
 import { apiRequest } from "@/lib/api";
 import { resolveCatalogImageUrl } from "@/lib/categoryApi";
 
@@ -22,9 +23,11 @@ function BrandInitials({ name }) {
 }
 
 const FILTERS = ["All", "Bird", "Fish", "Dog", "Cat", "Rabbit", "Grooming"];
+const COLLAPSED_BRAND_LIMIT = 14;
 
 export default function PopularBrands() {
   const [brands, setBrands] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("All");
   const [showAll, setShowAll] = useState(false);
 
@@ -49,6 +52,9 @@ export default function PopularBrands() {
       })
       .catch(() => {
         if (alive) setBrands([]);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
       });
 
     return () => {
@@ -65,8 +71,13 @@ export default function PopularBrands() {
     );
   }, [brands, activeFilter]);
 
-  // Show 12 brands by default, or all if showAll is true
-  const displayedBrands = showAll ? filteredBrands : filteredBrands.slice(0, 12);
+  const displayedBrands = showAll
+    ? filteredBrands
+    : filteredBrands.slice(0, COLLAPSED_BRAND_LIMIT);
+
+  if (loading) {
+    return <PopularBrandsSkeleton />;
+  }
 
   if (!brands.length) {
     return null;
@@ -119,7 +130,6 @@ export default function PopularBrands() {
                     alt={name}
                     width={48}
                     height={48}
-                    unoptimized
                     className="h-full w-full object-contain p-1"
                   />
                 ) : (
@@ -141,7 +151,7 @@ export default function PopularBrands() {
         </div>
 
         {/* Toggle Button */}
-        {filteredBrands.length > 12 && (
+        {filteredBrands.length > COLLAPSED_BRAND_LIMIT && (
           <div className="mt-12 flex justify-center">
             <button
               onClick={() => setShowAll(!showAll)}

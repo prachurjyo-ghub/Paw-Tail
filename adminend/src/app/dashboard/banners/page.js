@@ -1,13 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import DashboardShell, { Badge, Icon } from "@/components/DashboardShell";
 import { useToast } from "@/components/ui/toast";
+import { adminApi } from "@/lib/adminApi";
 import {
-  bannerTypeLabels,
-  bannerTypeOptions,
   buildBannerFormData,
   createBannerOnApi,
   deleteBannerOnApi,
@@ -20,22 +19,11 @@ import {
 const initialForm = {
   name: "",
   bannerType: "hero-banner",
-  slideNumber: "1",
-  linkUrl: "",
-  altText: "",
+  animalSlug: "",
+  categorySlug: "",
+  targetPages: [],
+  showCatalogHeader: true,
 };
-
-function groupByType(items) {
-  return items.reduce(
-    (acc, item) => {
-      if (acc[item.bannerType]) {
-        acc[item.bannerType].push(item);
-      }
-      return acc;
-    },
-    { "hero-banner": [], "promo-banner": [], "slider-banner": [] }
-  );
-}
 
 function Metric({ title, value, note }) {
   return (
@@ -45,6 +33,87 @@ function Metric({ title, value, note }) {
       <p className="mt-1 text-3xl font-black text-main">{value}</p>
       <p className="mt-1 text-xs font-semibold text-slate-400">{note}</p>
     </article>
+  );
+}
+
+function HeroBannerPreview({ banners, onEdit, onDelete, onCreate }) {
+  const heroBanners = banners
+    .filter((banner) => banner.bannerType === "hero-banner")
+    .slice(0, 3);
+  const slots = Array.from({ length: 3 }, (_, index) => heroBanners[index] || null);
+
+  return (
+    <section className="mt-5 rounded-[24px] border border-neutral-200 bg-white p-5 shadow-lg shadow-main/5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-black uppercase tracking-[0.3em] text-main/70">
+            Homepage hero preview
+          </p>
+          <p className="mt-1 text-xs font-semibold text-slate-500">
+            These are the three fixed hero slots. Empty slots use the storefront&apos;s built-in image.
+          </p>
+        </div>
+        <Badge tone="green">
+          {heroBanners.filter((banner) => banner.isActive).length} active
+        </Badge>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        {slots.map((banner, index) => (
+          <article
+            key={banner?._id || banner?.id || `empty-${index}`}
+            className="overflow-hidden rounded-2xl border border-main/10 bg-mainSoft/30"
+          >
+            <div className="relative aspect-[8/3] bg-mainSoft/60">
+              {banner?.imageUrl ? (
+                <Image
+                  src={getBannerImageUrl(banner.imageUrl)}
+                  alt={banner.name || `Hero banner ${index + 1}`}
+                  fill
+                  sizes="(max-width: 1024px) 100vw, 33vw"
+                  className={`object-cover ${banner.isActive ? "" : "grayscale opacity-50"}`}
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-xs font-black uppercase tracking-widest text-main/35">
+                  Storefront default
+                </div>
+              )}
+              <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-1 text-[10px] font-black text-main shadow-sm">
+                Slot {index + 1}
+              </span>
+            </div>
+            <div className="px-3 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="truncate text-xs font-black text-main">
+                  {banner?.name || "Default hero image"}
+                </p>
+                <span className={`text-[10px] font-black uppercase ${banner?.isActive ? "text-emerald-600" : "text-slate-400"}`}>
+                  {banner ? (banner.isActive ? "Active" : "Hidden") : "Default"}
+                </span>
+              </div>
+              <div className="mt-2.5 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => (banner ? onEdit(banner) : onCreate())}
+                  className="inline-flex h-8 flex-1 items-center justify-center rounded-lg bg-main px-3 text-xs font-black text-white transition hover:bg-mainHover"
+                >
+                  {banner ? "Replace image" : "Upload image"}
+                </button>
+                {banner ? (
+                  <button
+                    type="button"
+                    onClick={() => onDelete(banner)}
+                    className="inline-flex h-8 items-center justify-center rounded-lg border border-red-100 bg-red-50 px-3 text-xs font-black text-red-600 transition hover:bg-red-100"
+                  >
+                    Delete
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -92,22 +161,20 @@ function Field({
   );
 }
 
-function BannerSection({ title, items, onToggle, onDelete, onEdit }) {
+function BannerSection({ items, targetLabels, onToggle, onDelete, onEdit }) {
   if (!items.length) return null;
 
   return (
     <section className="overflow-hidden rounded-[24px] border border-neutral-200 bg-white shadow-lg shadow-main/5">
       <div className="border-b border-neutral-100 px-5 py-4">
-        <p className="text-sm font-black uppercase tracking-[0.35em] text-main/70">
-          {title}
-        </p>
+        <p className="text-sm font-black uppercase tracking-[0.35em] text-main/70">Saved banners</p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] border-collapse text-left">
           <thead className="bg-mainSoft/30">
             <tr className="border-b border-neutral-100 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
               <th className="px-4 py-3">Banner</th>
-              <th className="px-4 py-3">Order</th>
+              <th className="px-4 py-3">Placement</th>
               <th className="px-4 py-3 text-center">State</th>
               <th className="px-4 py-3 text-center">Action</th>
             </tr>
@@ -120,13 +187,20 @@ function BannerSection({ title, items, onToggle, onDelete, onEdit }) {
               <tr key={bannerId} className="border-b border-neutral-100 last:border-b-0">
                 <td className="px-4 py-4">
                   <p className="text-sm font-black text-main">{banner.name}</p>
+                  <p className="mt-1 text-[11px] font-black uppercase tracking-wide text-accent">
+                    {banner.bannerType === "hero-banner" ? "Hero" : "Promotional"}
+                  </p>
                   <p className="mt-1 text-[11px] font-semibold text-slate-400">
                     {bannerId}
                   </p>
                 </td>
                 <td className="px-4 py-4">
-                  <p className="text-sm font-black text-slate-700">
-                    Slide {banner.slideNumber}
+                  <p className="max-w-xs text-xs font-bold leading-5 text-slate-500">
+                    {banner.targetPages?.length
+                      ? banner.targetPages
+                          .map((target) => targetLabels[target] || target)
+                          .join(", ")
+                      : "Homepage hero"}
                   </p>
                 </td>
                 <td className="px-4 py-4 text-center">
@@ -176,13 +250,18 @@ export default function BannersPage() {
   const [imagePreview, setImagePreview] = useState("");
   const [editingId, setEditingId] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [animals, setAnimals] = useState([]);
+  const [categories, setCategories] = useState([]);
   const createRef = useRef(null);
 
-  const loadBanners = async () => {
+  const loadBanners = useCallback(async () => {
     setLoading(true);
     try {
       const rows = await getBannersFromApi();
-      setBanners(rows);
+      setBanners(rows.filter((banner) =>
+        banner.bannerType === "hero-banner" ||
+        (banner.bannerType === "promo-banner" && banner.targetPages?.length)
+      ));
     } catch (error) {
       showToast({
         tone: "danger",
@@ -191,11 +270,37 @@ export default function BannersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     loadBanners();
-  }, []);
+  }, [loadBanners]);
+
+  useEffect(() => {
+    let alive = true;
+
+    Promise.all([
+      adminApi("/animals/get-animals"),
+      adminApi("/categories/get-categories"),
+    ])
+      .then(([animalData, categoryData]) => {
+        if (!alive) return;
+        setAnimals(animalData.animals || []);
+        setCategories(categoryData.categories || []);
+      })
+      .catch((error) => {
+        if (alive) {
+          showToast({
+            tone: "danger",
+            title: error.message || "Could not load banner target pages.",
+          });
+        }
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [showToast]);
 
   useEffect(() => {
     if (!imageFile) {
@@ -209,7 +314,23 @@ export default function BannersPage() {
     return () => URL.revokeObjectURL(objectUrl);
   }, [imageFile]);
 
-  const grouped = useMemo(() => groupByType(banners), [banners]);
+  const targetLabels = useMemo(
+    () => Object.fromEntries([
+      ...animals.map((animal) => [`animal:${animal.slug}`, `${animal.name} overview`]),
+      ...categories.map((category) => [`category:${category.slug}`, `${category.animalName} / ${category.name}`]),
+    ]),
+    [animals, categories]
+  );
+  const selectedAnimal = animals.find((animal) => animal.slug === form.animalSlug);
+  const subcategoryOptions = categories.filter((category) => {
+    const animalName = String(selectedAnimal?.name || "").trim().toLowerCase();
+    const categoryAnimal = String(category.animalName || "").trim().toLowerCase();
+    return animalName && (
+      categoryAnimal === animalName ||
+      categoryAnimal === `${animalName}s` ||
+      `${categoryAnimal}s` === animalName
+    );
+  });
   const summary = useMemo(
     () => ({
       active: banners.filter((banner) => banner.isActive).length,
@@ -226,17 +347,61 @@ export default function BannersPage() {
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+      ...(name === "animalSlug" ? { categorySlug: "" } : {}),
+      ...(name === "bannerType"
+        ? {
+            animalSlug: "",
+            categorySlug: "",
+            targetPages: [],
+            showCatalogHeader: true,
+          }
+        : {}),
+    }));
   };
 
-  const refreshBanners = async () => {
-    const data = await adminApi("/banners/get-banners");
-    setBanners((data.banners || []).map(normalizeBanner));
+  const addTargetPage = () => {
+    if (!form.animalSlug) {
+      showToast({ tone: "warning", title: "Select a category first." });
+      return;
+    }
+
+    const targetPage = form.categorySlug
+      ? `category:${form.categorySlug}`
+      : `animal:${form.animalSlug}`;
+
+    if (form.targetPages.includes(targetPage)) {
+      showToast({ tone: "warning", title: "That page is already selected." });
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      targetPages: [...current.targetPages, targetPage],
+      animalSlug: "",
+      categorySlug: "",
+    }));
+  };
+
+  const removeTargetPage = (targetPage) => {
+    setForm((current) => ({
+      ...current,
+      targetPages: current.targetPages.filter((page) => page !== targetPage),
+    }));
   };
 
   const scrollToCreate = () => {
     setShowCreate(true);
     resetForm();
+  };
+
+  const createHeroBanner = () => {
+    scrollToCreate();
+    window.requestAnimationFrame(() => {
+      createRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   };
 
   const startEdit = (banner) => {
@@ -246,9 +411,10 @@ export default function BannersPage() {
     setForm({
       name: banner.name || "",
       bannerType: banner.bannerType,
-      slideNumber: String(banner.slideNumber || 1),
-      linkUrl: banner.linkUrl || "",
-      altText: banner.altText || "",
+      animalSlug: "",
+      categorySlug: "",
+      targetPages: banner.targetPages || [],
+      showCatalogHeader: banner.showCatalogHeader !== false,
     });
     setImageFile(null);
     setImagePreview(getBannerImageUrl(banner.imageUrl));
@@ -263,6 +429,11 @@ export default function BannersPage() {
       return;
     }
 
+    if (form.bannerType === "promo-banner" && !form.targetPages.length) {
+      showToast({ tone: "warning", title: "Add at least one page for this promotional banner." });
+      return;
+    }
+
     if (!editingId && !imageFile) {
       showToast({ tone: "warning", title: "Banner image is required." });
       return;
@@ -273,9 +444,13 @@ export default function BannersPage() {
       const payload = buildBannerFormData({
         name: form.name,
         bannerType: form.bannerType,
-        slideNumber: Number(form.slideNumber) || 1,
-        linkUrl: form.linkUrl,
-        altText: form.altText,
+        slideNumber: 1,
+        targetPages:
+          form.bannerType === "promo-banner"
+            ? form.targetPages
+            : [],
+        showCatalogHeader:
+          form.bannerType === "promo-banner" ? form.showCatalogHeader : true,
         imageFile,
       });
 
@@ -351,7 +526,7 @@ export default function BannersPage() {
   };
 
   return (
-    <DashboardShell activeItem="Promo Banners">
+    <DashboardShell activeItem="Banners">
       <div
         ref={createRef}
         className="rounded-[24px] border border-neutral-200 bg-white px-5 py-5 shadow-lg shadow-main/5 md:px-6"
@@ -362,11 +537,10 @@ export default function BannersPage() {
               Marketing
             </p>
             <h1 className="mt-2 text-2xl font-black tracking-tight text-main md:text-3xl">
-              Promo Banners
+              Banners
             </h1>
             <p className="mt-1.5 max-w-3xl text-sm font-semibold leading-6 text-slate-500">
-              Upload banner images here. Active hero banners appear on the home carousel;
-              promo banners appear in the deals section.
+              Manage the three homepage hero images and promotional images for catalog pages.
             </p>
           </div>
           {!showCreate ? (
@@ -406,7 +580,7 @@ export default function BannersPage() {
 
             <form onSubmit={handleSubmit} className="mt-5 grid gap-4 sm:grid-cols-2">
               <Field
-                label="Banner name"
+                label="Title"
                 name="name"
                 value={form.name}
                 onChange={handleChange}
@@ -418,52 +592,138 @@ export default function BannersPage() {
                 value={form.bannerType}
                 onChange={handleChange}
                 as="select"
-                options={bannerTypeOptions}
+                options={[
+                  ["hero-banner", "Homepage hero"],
+                  ["promo-banner", "Promotional page banner"],
+                ]}
               />
-              <Field
-                label="Slide order"
-                name="slideNumber"
-                value={form.slideNumber}
-                onChange={handleChange}
-                type="number"
-                min="1"
-              />
-              <Field
-                label="Link URL (optional)"
-                name="linkUrl"
-                value={form.linkUrl}
-                onChange={handleChange}
-                placeholder="/categories/dog"
-              />
-              <Field
-                label="Alt text (optional)"
-                name="altText"
-                value={form.altText}
-                onChange={handleChange}
-                placeholder="Summer pet essentials banner"
-                className="sm:col-span-2"
-              />
+
+              {form.bannerType === "promo-banner" ? (
+                <div className="rounded-2xl border border-main/10 bg-mainSoft/25 p-4 sm:col-span-2">
+                  <p className="text-xs font-black uppercase tracking-[0.22em] text-main/75">
+                    Show on pages
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-slate-500">
+                    Choose a category page or one of its subcategory pages, then add it. Repeat to use the same banner on multiple pages.
+                  </p>
+                  <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+                    <Field
+                      label="Category"
+                      name="animalSlug"
+                      value={form.animalSlug}
+                      onChange={handleChange}
+                      as="select"
+                      options={[
+                        ["", "Select category"],
+                        ...animals.map((animal) => [animal.slug, animal.name]),
+                      ]}
+                    />
+                    <Field
+                      label="Subcategory (optional)"
+                      name="categorySlug"
+                      value={form.categorySlug}
+                      onChange={handleChange}
+                      as="select"
+                      options={[
+                        ["", form.animalSlug ? "Main category page" : "Select category first"],
+                        ...subcategoryOptions.map((category) => [category.slug, category.name]),
+                      ]}
+                    />
+                    <button
+                      type="button"
+                      onClick={addTargetPage}
+                      className="inline-flex h-11 items-center justify-center rounded-xl bg-main px-5 text-sm font-black text-white transition hover:bg-mainHover"
+                    >
+                      Add page
+                    </button>
+                  </div>
+
+                  {form.targetPages.length ? (
+                    <div className="mt-4 flex flex-wrap gap-2" aria-label="Selected banner pages">
+                      {form.targetPages.map((targetPage) => (
+                        <span
+                          key={targetPage}
+                          className="inline-flex items-center gap-2 rounded-full border border-main/15 bg-white py-1.5 pl-3 pr-1.5 text-xs font-black text-main"
+                        >
+                          {targetLabels[targetPage] || targetPage}
+                          <button
+                            type="button"
+                            onClick={() => removeTargetPage(targetPage)}
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-mainSoft text-main transition hover:bg-red-50 hover:text-red-600"
+                            aria-label={`Remove ${targetLabels[targetPage] || targetPage}`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-xs font-bold text-slate-400">No pages added yet.</p>
+                  )}
+
+                  <div className="mt-4 flex items-center justify-between gap-4 rounded-xl border border-main/10 bg-white p-3.5">
+                    <div>
+                      <p className="text-sm font-black text-main">Show green category header</p>
+                      <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                        Turn this off to show only the page name above the promotional banner.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={form.showCatalogHeader}
+                      onClick={() =>
+                        setForm((current) => ({
+                          ...current,
+                          showCatalogHeader: !current.showCatalogHeader,
+                        }))
+                      }
+                      className={`relative h-7 w-12 shrink-0 rounded-full transition ${
+                        form.showCatalogHeader ? "bg-main" : "bg-neutral-300"
+                      }`}
+                    >
+                      <span
+                        className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                          form.showCatalogHeader ? "translate-x-5" : "translate-x-0"
+                        }`}
+                      />
+                      <span className="sr-only">
+                        {form.showCatalogHeader ? "Disable" : "Enable"} green category header
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="sm:col-span-2">
                 <span className="text-xs font-black uppercase tracking-[0.22em] text-main/75">
                   Banner image {editingId ? "(optional on update)" : ""}
                 </span>
+                <p className="mt-1 text-xs font-semibold text-slate-500">
+                  {form.bannerType === "hero-banner"
+                    ? "Required ratio: 8:3. Recommended size: 2048 × 768 px. Maximum three hero banners."
+                    : "Required ratio: 5:1. Recommended size: 2000 × 400 px."}
+                </p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-3">
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp"
                     onChange={(event) =>
                       setImageFile(event.target.files?.[0] || null)
                     }
                     className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-mainSoft file:px-3 file:py-2 file:text-sm file:font-black file:text-main"
                   />
                   {imagePreview ? (
-                    <div className="relative h-24 w-40 overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50">
+                    <div
+                      className={`relative w-full max-w-xl overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50 ${
+                        form.bannerType === "hero-banner" ? "aspect-[8/3]" : "aspect-[5/1]"
+                      }`}
+                    >
                       <Image
                         src={imagePreview}
                         alt="Banner preview"
                         fill
-                        unoptimized
+                        unoptimized={imagePreview.startsWith("blob:")}
                         className="object-cover"
                       />
                     </div>
@@ -508,31 +768,33 @@ export default function BannersPage() {
         />
       </div>
 
+      {!loading ? (
+        <HeroBannerPreview
+          banners={banners}
+          onEdit={startEdit}
+          onDelete={deleteBanner}
+          onCreate={createHeroBanner}
+        />
+      ) : null}
+
       <div className="mt-5 space-y-5">
-        <BannerSection
-          title={bannerTypeLabels["hero-banner"]}
-          items={grouped["hero-banner"]}
-          loading={loading}
-          onToggle={toggleBanner}
-          onEdit={startEdit}
-          onDelete={deleteBanner}
-        />
-        <BannerSection
-          title={bannerTypeLabels["promo-banner"]}
-          items={grouped["promo-banner"]}
-          loading={loading}
-          onToggle={toggleBanner}
-          onEdit={startEdit}
-          onDelete={deleteBanner}
-        />
-        <BannerSection
-          title={bannerTypeLabels["slider-banner"]}
-          items={grouped["slider-banner"]}
-          loading={loading}
-          onToggle={toggleBanner}
-          onEdit={startEdit}
-          onDelete={deleteBanner}
-        />
+        {loading ? (
+          <div className="rounded-[24px] border border-neutral-200 bg-white p-8 text-center text-sm font-bold text-slate-500">
+            Loading page banners...
+          </div>
+        ) : banners.length ? (
+          <BannerSection
+            items={banners}
+            targetLabels={targetLabels}
+            onToggle={toggleBanner}
+            onEdit={startEdit}
+            onDelete={deleteBanner}
+          />
+        ) : (
+          <div className="rounded-[24px] border border-dashed border-main/20 bg-white p-8 text-center text-sm font-bold text-slate-500">
+            No page banners have been created yet.
+          </div>
+        )}
       </div>
     </DashboardShell>
   );

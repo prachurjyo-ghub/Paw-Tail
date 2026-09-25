@@ -47,7 +47,6 @@ export default function ExplorePageContent({ animals = [], categories = [], bran
                         alt={animal.name}
                         width={64}
                         height={64}
-                        unoptimized
                         className="h-full w-full object-cover"
                       />
                     ) : (
@@ -82,7 +81,6 @@ export default function ExplorePageContent({ animals = [], categories = [], bran
                         alt={category.name}
                         width={64}
                         height={64}
-                        unoptimized
                         className="h-full w-full object-contain p-1 sm:p-2"
                       />
                     ) : (
@@ -117,7 +115,6 @@ export default function ExplorePageContent({ animals = [], categories = [], bran
                         alt={brand.name}
                         width={48}
                         height={48}
-                        unoptimized
                         className="h-full w-full object-contain p-1 sm:p-2 mix-blend-multiply"
                       />
                     ) : (

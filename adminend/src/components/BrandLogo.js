@@ -1,5 +1,10 @@
 export default function BrandLogo({ size = "md", showText = true, className = "" }) {
   const sizes = {
+    xs: {
+      iconWrap: "h-8 w-8 rounded-[9px]",
+      icon: "h-5 w-5",
+      text: "text-[17px]",
+    },
     sm: {
       iconWrap: "h-11 w-11 rounded-2xl",
       icon: "h-8 w-8",

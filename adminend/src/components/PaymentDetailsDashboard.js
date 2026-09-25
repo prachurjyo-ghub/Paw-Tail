@@ -73,6 +73,8 @@ export default function PaymentDetailsDashboard() {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState("All");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("All");
   const [updatingId, setUpdatingId] = useState("");
 
   useEffect(() => {
@@ -97,10 +99,8 @@ export default function PaymentDetailsDashboard() {
 
   const filteredPayments = useMemo(() => {
     const query = searchText.trim().toLowerCase();
-    if (!query) return payments;
-
-    return payments.filter((payment) =>
-      [
+    return payments.filter((payment) => {
+      const matchesSearch = !query || [
         payment.id,
         payment.customer,
         payment.phone,
@@ -110,9 +110,14 @@ export default function PaymentDetailsDashboard() {
         payment.promoCode,
       ]
         .filter(Boolean)
-        .some((value) => value.toLowerCase().includes(query))
-    );
-  }, [payments, searchText]);
+        .some((value) => value.toLowerCase().includes(query));
+      const matchesMethod =
+        paymentMethodFilter === "All" || payment.payment === paymentMethodFilter;
+      const matchesStatus =
+        paymentStatusFilter === "All" || payment.billStatus === paymentStatusFilter;
+      return matchesSearch && matchesMethod && matchesStatus;
+    });
+  }, [payments, searchText, paymentMethodFilter, paymentStatusFilter]);
 
   const cards = useMemo(() => getPaymentCards(payments), [payments]);
 
@@ -138,20 +143,20 @@ export default function PaymentDetailsDashboard() {
   }
 
   return (
-    <DashboardShell activeItem="Payment Details">
+    <DashboardShell activeItem="Payments">
       <div className="rounded-[28px] border border-neutral-200 bg-white px-6 py-7 shadow-lg shadow-main/5 md:px-8">
         <p className="text-sm font-black uppercase tracking-[0.35em] text-main/70">
           Payments
         </p>
         <h1 className="mt-3 text-3xl font-black tracking-tight text-main md:text-4xl">
-          Payment Details
+          Payments
         </h1>
         <p className="mt-4 max-w-4xl text-sm font-semibold leading-7 text-slate-400 md:text-base">
           Track paid and unpaid orders before shipping. Promo discounts are
           included in the total due for each order.
         </p>
 
-        <label className="mt-7 flex h-14 items-center rounded-2xl border border-neutral-200 bg-white px-5 text-slate-400 shadow-inner shadow-main/5">
+        <label className="mt-7 flex h-14 items-center rounded-2xl border border-neutral-200 bg-white px-5 text-slate-400 shadow-inner shadow-main/5 lg:hidden">
           <Icon name="search" className="h-5 w-5" />
           <input
             type="search"
@@ -162,6 +167,18 @@ export default function PaymentDetailsDashboard() {
             className="ml-3 w-full bg-transparent text-sm font-bold text-slate-700 outline-none placeholder:text-slate-300"
           />
         </label>
+        <div className="mt-3 hidden items-center gap-2 border-t border-[#e4ece7] pt-3 lg:flex">
+          <span className="mr-0.5 text-[10.5px] font-bold uppercase tracking-[0.09em] text-[#8a9e96]">Filters</span>
+          <select value={paymentMethodFilter} onChange={(event) => setPaymentMethodFilter(event.target.value)} className="h-[30px] rounded-[7px] border border-[#e4ece7] bg-white px-2.5 text-xs text-[#3d554b] outline-none">
+            <option value="All">All Methods</option>
+            {[...new Set(payments.map((payment) => payment.payment).filter(Boolean))].map((method) => <option key={method} value={method}>{method}</option>)}
+          </select>
+          <select value={paymentStatusFilter} onChange={(event) => setPaymentStatusFilter(event.target.value)} className="h-[30px] rounded-[7px] border border-[#e4ece7] bg-white px-2.5 text-xs text-[#3d554b] outline-none">
+            <option value="All">All Payment</option>
+            <option value="Paid">Paid</option>
+            <option value="Due">Unpaid</option>
+          </select>
+        </div>
       </div>
 
       <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -189,6 +206,10 @@ export default function PaymentDetailsDashboard() {
       ) : null}
 
       <div className="mt-8 overflow-hidden rounded-[28px] border border-neutral-200 bg-white shadow-lg shadow-main/5">
+        <div className="hidden items-center justify-between border-b border-[#e4ece7] bg-gradient-to-b from-[#fbfdfc] to-white px-4 py-2.5 lg:flex">
+          <h3 className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7f78]">Payment Records</h3>
+          <span className="text-[11px] text-[#6b7f78]">{filteredPayments.length} orders</span>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1280px] border-collapse text-left">
             <thead className="bg-white">

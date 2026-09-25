@@ -501,9 +501,11 @@
 
 .chip {
   position: absolute;
-  z-index: 8;
+  z-index: 12;
   display: flex;
   align-items: center;
+  width: max-content;
+  max-width: calc(100% - 24px);
   gap: 10px;
   padding: 10px 14px;
   border: 1px solid rgba(255, 255, 255, 0.66);
@@ -531,9 +533,15 @@
   height: 16px;
 }
 
+.chip > span:last-child {
+  min-width: 0;
+}
+
 .chip strong,
 .chip small {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -550,19 +558,19 @@
 }
 
 .shippingChip {
-  top: -28px;
-  left: -30px;
+  top: -24px;
+  left: -18px;
 }
 
 .helpChip {
-  top: 31%;
-  right: -34px;
+  top: 34%;
+  right: -18px;
   animation-delay: -1.4s;
 }
 
 .paymentChip {
   bottom: 46px;
-  left: -26px;
+  left: -18px;
   animation-delay: -2.8s;
 }
 
@@ -740,8 +748,12 @@
 }
 
 @keyframes chip-float {
+  0%,
+  100% {
+    transform: translateZ(90px) translateY(0);
+  }
   50% {
-    transform: translateY(-10px);
+    transform: translateZ(90px) translateY(-10px);
   }
 }
 
@@ -796,8 +808,8 @@
 @media (max-width: 720px) {
   .inner {
     width: min(100% - 34px, 650px);
-    gap: 34px;
-    padding: 64px 0 58px;
+    gap: 26px;
+    padding: 48px 0 46px;
   }
 
   .stage {
@@ -817,14 +829,14 @@
   }
 
   .title {
-    margin: 16px 0 13px;
-    font-size: clamp(2.1rem, 9.5vw, 2.75rem);
-    line-height: 1.02;
+    margin: 12px 0 10px;
+    font-size: clamp(1.9rem, 8vw, 2.35rem);
+    line-height: 1.01;
   }
 
   .description {
-    font-size: 13.5px;
-    line-height: 1.62;
+    font-size: 12.5px;
+    line-height: 1.5;
   }
 
   .actions {
@@ -832,13 +844,13 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 9px;
     max-width: none;
-    margin: 21px 0 24px;
+    margin: 16px 0 18px;
   }
 
   .primaryButton,
   .secondaryButton {
     width: 100%;
-    min-height: 44px;
+    min-height: 42px;
     padding: 0 12px;
     gap: 7px;
     font-size: 12px;
@@ -860,16 +872,17 @@
   }
 
   .shippingChip {
-    left: -5px;
+    top: -18px;
+    left: 8px;
   }
 
   .helpChip {
-    right: -5px;
+    right: 8px;
   }
 
   .paymentChip {
-    bottom: 35px;
-    left: -5px;
+    bottom: 34px;
+    left: 8px;
   }
 
   .coin {
@@ -908,12 +921,29 @@
 }
 
 @media (max-width: 520px) {
+  .inner {
+    gap: 22px;
+    padding: 36px 0 34px;
+  }
+
+  .eyebrow {
+    padding: 6px 9px 6px 8px;
+    font-size: 9px;
+  }
+
   .eyebrow strong {
     display: none;
   }
 
   .title {
-    font-size: clamp(2rem, 9.2vw, 2.5rem);
+    margin: 11px 0 8px;
+    font-size: clamp(1.75rem, 7.8vw, 2rem);
+    line-height: 1;
+  }
+
+  .description {
+    font-size: 11.5px;
+    line-height: 1.48;
   }
 
   .stage {
@@ -925,6 +955,7 @@
     padding: 6px 8px;
     border-radius: 11px;
     scale: 0.76;
+    transform-origin: left center;
   }
 
   .chipIcon {
@@ -947,21 +978,18 @@
   }
 
   .shippingChip {
-    top: -29px;
-    left: -10px;
-    transform-origin: left bottom;
+    top: -16px;
+    left: 4px;
   }
 
   .helpChip {
-    top: 31%;
-    right: -14px;
-    transform-origin: right center;
+    top: 32%;
+    right: 4px;
   }
 
   .paymentChip {
-    bottom: 28px;
-    left: -15px;
-    transform-origin: left center;
+    bottom: 27px;
+    left: 4px;
   }
 
   .coin {
@@ -977,8 +1005,28 @@
   }
 
   .actions {
-    grid-template-columns: 1fr;
-    max-width: 230px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    max-width: none;
+    margin: 13px 0 0;
+  }
+
+  .primaryButton,
+  .secondaryButton {
+    min-height: 40px;
+    padding: 0 9px;
+    gap: 5px;
+    font-size: 10.5px;
+  }
+
+  .primaryButton svg,
+  .secondaryButton svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .stats {
+    display: none;
   }
 
   .dots {

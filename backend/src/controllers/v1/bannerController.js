@@ -1,7 +1,8 @@
 const mongoose = require("mongoose");
 
 const Banner = require("../../models/Banner");
-const { deleteBannerImageFile } = require("../../utils/bannerFiles");
+const { mediaService } = require("../../services/mediaService");
+const { cleanupOldMedia } = require("../../utils/media");
 
 const bannerTypeMap = {
   hero: "hero-banner",
@@ -38,6 +39,26 @@ const parseBoolean = (value) => {
   return Boolean(value);
 };
 
+const normalizeTargetPages = (value) => {
+  let pages = value;
+
+  if (typeof pages === "string") {
+    try {
+      pages = JSON.parse(pages);
+    } catch (_error) {
+      pages = pages.split(",");
+    }
+  }
+
+  if (!Array.isArray(pages)) return [];
+
+  return [...new Set(
+    pages
+      .map((page) => (typeof page === "string" ? page.trim().toLowerCase() : ""))
+      .filter((page) => /^(animal|category):[a-z0-9-]+$/.test(page))
+  )];
+};
+
 const isInvalidBannerId = (id, res) => {
   if (mongoose.Types.ObjectId.isValid(id)) {
     return false;
@@ -58,7 +79,7 @@ const getNextSlideNumber = async (bannerType) => {
   return lastBanner ? lastBanner.slideNumber + 1 : 1;
 };
 
-const buildBannerData = async (body, currentBanner = null, file = null) => {
+const buildBannerData = async (body, currentBanner = null) => {
   const data = {};
 
   if (body.name !== undefined) {
@@ -87,8 +108,12 @@ const buildBannerData = async (body, currentBanner = null, file = null) => {
     data.altText = altText || null;
   }
 
-  if (file) {
-    data.imageUrl = `/uploads/banners/${file.filename}`;
+  if (body.targetPages !== undefined) {
+    data.targetPages = normalizeTargetPages(body.targetPages);
+  }
+
+  if (body.showCatalogHeader !== undefined) {
+    data.showCatalogHeader = parseBoolean(body.showCatalogHeader);
   }
 
   const bannerType = data.bannerType || currentBanner?.bannerType;
@@ -136,13 +161,53 @@ const ensurePromoBannerLimit = async (bannerData, currentBanner = null) => {
   const isActive =
     bannerData.isActive !== undefined ? bannerData.isActive : currentBanner?.isActive ?? true;
 
+  const targetPages =
+    bannerData.targetPages !== undefined
+      ? bannerData.targetPages
+      : currentBanner?.targetPages || [];
+
+  if (
+    bannerType === "hero-banner" &&
+    (!currentBanner || currentBanner.bannerType !== "hero-banner")
+  ) {
+    const heroBannerCount = await Banner.countDocuments({
+      bannerType: "hero-banner",
+    });
+
+    if (heroBannerCount >= 3) {
+      return "Only 3 homepage hero banners are allowed";
+    }
+  }
+
   if (bannerType !== "promo-banner" || !isActive) {
+    return null;
+  }
+
+  if (targetPages.length > 0) {
+    const conflictingBanner = await Banner.findOne({
+      bannerType: "promo-banner",
+      isActive: true,
+      targetPages: { $in: targetPages },
+      ...(currentBanner ? { _id: { $ne: currentBanner._id } } : {}),
+    }).select("name targetPages");
+
+    if (conflictingBanner) {
+      const overlappingPages = targetPages.filter((page) =>
+        conflictingBanner.targetPages.includes(page)
+      );
+      return `Another active banner already uses: ${overlappingPages.join(", ")}`;
+    }
+
     return null;
   }
 
   const activePromoBannerCount = await Banner.countDocuments({
     bannerType: "promo-banner",
     isActive: true,
+    $or: [
+      { targetPages: { $exists: false } },
+      { targetPages: { $size: 0 } },
+    ],
     ...(currentBanner ? { _id: { $ne: currentBanner._id } } : {}),
   });
 
@@ -165,6 +230,20 @@ const getBanners = async (req, res, next) => {
       filter.bannerType = bannerType;
     }
 
+    const targetPage = String(req.query.targetPage || "").trim().toLowerCase();
+    const homepageOnly = ["1", "true", "yes"].includes(
+      String(req.query.homepageOnly || "").toLowerCase()
+    );
+
+    if (targetPage) {
+      filter.targetPages = targetPage;
+    } else if (homepageOnly) {
+      filter.$or = [
+        { targetPages: { $exists: false } },
+        { targetPages: { $size: 0 } },
+      ];
+    }
+
     const banners = await Banner.find(filter).sort({
       bannerType: 1,
       slideNumber: 1,
@@ -182,17 +261,16 @@ const getBanners = async (req, res, next) => {
 };
 
 const postBanner = async (req, res, next) => {
+  let uploadedImage = null;
+  let databaseSaved = false;
+
   try {
-    const data = await buildBannerData(req.body, null, req.file);
+    const data = await buildBannerData(req.body);
     const validationMessage = validateBannerPayload(data, {
       hasImage: Boolean(req.file),
     });
 
     if (validationMessage) {
-      if (req.file) {
-        deleteBannerImageFile(data.imageUrl);
-      }
-
       return res.status(400).json({
         success: false,
         message: validationMessage,
@@ -202,17 +280,16 @@ const postBanner = async (req, res, next) => {
     const limitMessage = await ensurePromoBannerLimit(data);
 
     if (limitMessage) {
-      if (req.file) {
-        deleteBannerImageFile(data.imageUrl);
-      }
-
       return res.status(400).json({
         success: false,
         message: limitMessage,
       });
     }
 
+    uploadedImage = await mediaService.uploadImage(req.file, "banners");
+    data.imageUrl = uploadedImage;
     const banner = await Banner.create(data);
+    databaseSaved = true;
 
     return res.status(201).json({
       success: true,
@@ -220,8 +297,13 @@ const postBanner = async (req, res, next) => {
       banner,
     });
   } catch (error) {
-    if (req.file) {
-      deleteBannerImageFile(`/uploads/banners/${req.file.filename}`);
+    if (uploadedImage && !databaseSaved) {
+      await mediaService
+        .destroyMedia(uploadedImage, {
+          requestId: req.requestId,
+          resource: "banners",
+        })
+        .catch(() => undefined);
     }
 
     next(error);
@@ -229,6 +311,9 @@ const postBanner = async (req, res, next) => {
 };
 
 const updateBanner = async (req, res, next) => {
+  let newImage = null;
+  let databaseSaved = false;
+
   try {
     const { id } = req.params;
 
@@ -239,10 +324,6 @@ const updateBanner = async (req, res, next) => {
     const banner = await Banner.findById(id);
 
     if (!banner) {
-      if (req.file) {
-        deleteBannerImageFile(`/uploads/banners/${req.file.filename}`);
-      }
-
       return res.status(404).json({
         success: false,
         message: "Banner not found",
@@ -250,17 +331,13 @@ const updateBanner = async (req, res, next) => {
     }
 
     const previousImageUrl = banner.imageUrl;
-    const data = await buildBannerData(req.body, banner, req.file);
+    const data = await buildBannerData(req.body, banner);
     const validationMessage = validateBannerPayload(data, {
       isUpdate: true,
       hasImage: Boolean(req.file),
     });
 
     if (validationMessage) {
-      if (req.file) {
-        deleteBannerImageFile(data.imageUrl);
-      }
-
       return res.status(400).json({
         success: false,
         message: validationMessage,
@@ -270,21 +347,28 @@ const updateBanner = async (req, res, next) => {
     const limitMessage = await ensurePromoBannerLimit(data, banner);
 
     if (limitMessage) {
-      if (req.file) {
-        deleteBannerImageFile(data.imageUrl);
-      }
-
       return res.status(400).json({
         success: false,
         message: limitMessage,
       });
     }
 
+    if (req.file) {
+      newImage = await mediaService.uploadImage(req.file, "banners");
+      data.imageUrl = newImage;
+    }
+
     Object.assign(banner, data);
     await banner.save();
+    databaseSaved = true;
 
-    if (req.file && previousImageUrl && previousImageUrl !== banner.imageUrl) {
-      deleteBannerImageFile(previousImageUrl);
+    if (newImage && previousImageUrl) {
+      await cleanupOldMedia([previousImageUrl], {
+        legacyFolder: "banners",
+        requestId: req.requestId,
+        resource: "banners",
+        entityId: banner._id,
+      });
     }
 
     return res.status(200).json({
@@ -293,8 +377,13 @@ const updateBanner = async (req, res, next) => {
       banner,
     });
   } catch (error) {
-    if (req.file) {
-      deleteBannerImageFile(`/uploads/banners/${req.file.filename}`);
+    if (newImage && !databaseSaved) {
+      await mediaService
+        .destroyMedia(newImage, {
+          requestId: req.requestId,
+          resource: "banners",
+        })
+        .catch(() => undefined);
     }
 
     next(error);
@@ -318,7 +407,12 @@ const deleteBanner = async (req, res, next) => {
       });
     }
 
-    deleteBannerImageFile(banner.imageUrl);
+    await cleanupOldMedia([banner.imageUrl], {
+      legacyFolder: "banners",
+      requestId: req.requestId,
+      resource: "banners",
+      entityId: banner._id,
+    });
 
     return res.status(200).json({
       success: true,

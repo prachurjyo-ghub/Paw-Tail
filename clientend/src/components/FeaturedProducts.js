@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Container from "@/components/Container";
 import ProductCard from "@/components/category/ProductCard";
+import { FeaturedProductsSkeleton } from "@/components/skeletons/StorefrontSkeletons";
 import { apiRequest } from "@/lib/api";
 import { mapProductForListingCard } from "@/lib/productApi";
 
@@ -43,7 +44,11 @@ export default function FeaturedProducts() {
     };
   }, []);
 
-  if (loading || products.length === 0) {
+  if (loading) {
+    return <FeaturedProductsSkeleton />;
+  }
+
+  if (products.length === 0) {
     return null;
   }
 

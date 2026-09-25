@@ -1,24 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import DashboardShell, { Badge, Icon } from "@/components/DashboardShell";
 import { useToast } from "@/components/ui/toast";
-import { adminApi } from "@/lib/adminApi";
+import {
+  deleteReview,
+  getReviewsFromApi,
+  hideReview,
+  normalizeReview,
+  replyToReview,
+} from "@/lib/reviewApi";
 
 function stars(count) {
-  return "★★★★★".slice(0, count);
+  return "★★★★★".slice(0, Math.max(0, Math.min(5, Number(count) || 0)));
 }
-
-const normalizeReview = (review) => ({
-  id: review._id,
-  customer: review.customerName,
-  product: review.product?.name || "Product",
-  rating: review.rating,
-  review: review.comment,
-  reply: review.reply || "",
-  status: review.status || (review.reply ? "replied" : "pending"),
-});
 
 export default function ReviewsPage() {
   const { showToast } = useToast();
@@ -27,32 +23,48 @@ export default function ReviewsPage() {
   const [replyText, setReplyText] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [visibilityFilter, setVisibilityFilter] = useState("visible");
+  const [q, setQ] = useState("");
+
+  const loadReviews = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getReviewsFromApi({
+        status: statusFilter || undefined,
+        hidden:
+          visibilityFilter === "hidden"
+            ? true
+            : visibilityFilter === "visible"
+              ? false
+              : undefined,
+        q: q || undefined,
+      });
+      const nextReviews = data.map(normalizeReview);
+      setReviews(nextReviews);
+      setSelectedId((current) => {
+        if (current && nextReviews.some((item) => item.id === current)) {
+          return current;
+        }
+        return nextReviews[0]?.id || "";
+      });
+      const selected =
+        nextReviews.find((item) => item.id === selectedId) || nextReviews[0];
+      setReplyText(selected?.reply || "");
+    } catch (error) {
+      showToast({
+        tone: "danger",
+        title: error.message || "Failed to load reviews.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [q, selectedId, showToast, statusFilter, visibilityFilter]);
 
   useEffect(() => {
-    let alive = true;
-
-    adminApi("/reviews/get-reviews")
-      .then((data) => {
-        if (!alive) return;
-
-        const nextReviews = (data.reviews || []).map(normalizeReview);
-        setReviews(nextReviews);
-        if (nextReviews[0]) {
-          setSelectedId(nextReviews[0].id);
-          setReplyText(nextReviews[0].reply);
-        }
-      })
-      .catch((error) => {
-        showToast({ tone: "danger", title: error.message || "Failed to load reviews." });
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-
-    return () => {
-      alive = false;
-    };
-  }, [showToast]);
+    loadReviews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const selectedReview = useMemo(
     () => reviews.find((item) => item.id === selectedId) || reviews[0] || null,
@@ -62,50 +74,145 @@ export default function ReviewsPage() {
   const selectReview = (id) => {
     const next = reviews.find((item) => item.id === id);
     if (!next) return;
-
     setSelectedId(id);
     setReplyText(next.reply);
   };
 
   const saveReply = async () => {
-    if (!selectedReview) {
-      return;
-    }
-
+    if (!selectedReview) return;
     setSaving(true);
     try {
-      await adminApi(`/reviews/reply-reviews/${selectedReview.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ reply: replyText.trim() }),
-      });
-
-      const data = await adminApi("/reviews/get-reviews");
-      const nextReviews = (data.reviews || []).map(normalizeReview);
-      setReviews(nextReviews);
-      const refreshed = nextReviews.find((item) => item.id === selectedReview.id);
-      setReplyText(refreshed?.reply || "");
+      const updated = await replyToReview(selectedReview.id, replyText.trim());
+      const normalized = normalizeReview(updated);
+      setReviews((current) =>
+        current.map((item) => (item.id === normalized.id ? normalized : item))
+      );
+      setReplyText(normalized.reply);
       showToast({ tone: "success", title: "Reply saved." });
     } catch (error) {
-      showToast({ tone: "danger", title: error.message || "Failed to save reply." });
+      showToast({
+        tone: "danger",
+        title: error.message || "Failed to save reply.",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleHide = async (isHidden) => {
+    if (!selectedReview) return;
+    setSaving(true);
+    try {
+      const updated = await hideReview(selectedReview.id, isHidden);
+      const normalized = normalizeReview(updated);
+      setReviews((current) =>
+        current.map((item) => (item.id === normalized.id ? normalized : item))
+      );
+      showToast({
+        tone: "success",
+        title: isHidden
+          ? "Review hidden from storefront and averages."
+          : "Review visible again.",
+      });
+      if (visibilityFilter !== "all") {
+        await loadReviews();
+      }
+    } catch (error) {
+      showToast({
+        tone: "danger",
+        title: error.message || "Failed to update visibility.",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedReview) return;
+    if (!window.confirm("Delete this review permanently?")) return;
+    setSaving(true);
+    try {
+      await deleteReview(selectedReview.id);
+      showToast({ tone: "success", title: "Review deleted." });
+      await loadReviews();
+    } catch (error) {
+      showToast({
+        tone: "danger",
+        title: error.message || "Failed to delete review.",
+      });
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <DashboardShell activeItem="Reviews & Replies">
+    <DashboardShell activeItem="Reviews">
       <div className="rounded-[24px] border border-neutral-200 bg-white px-5 py-5 shadow-lg shadow-main/5 md:px-6">
         <p className="text-sm font-black uppercase tracking-[0.35em] text-main/70">
           Customer Voice
         </p>
         <h1 className="mt-2 text-2xl font-black tracking-tight text-main md:text-3xl">
-          Reviews & Replies
+          Reviews
         </h1>
         <p className="mt-1.5 max-w-3xl text-sm font-semibold leading-6 text-slate-500">
-          Keep the review list short, select one review, and save a reply when
-          needed.
+          Ratings go live immediately. Hide removes a review from the product
+          page and from the average. Reply or delete as needed.
         </p>
       </div>
+
+      <form
+        className="mt-5 grid gap-3 rounded-[24px] border border-neutral-200 bg-white p-4 shadow-lg shadow-main/5 md:grid-cols-[1fr_160px_160px_auto]"
+        onSubmit={(event) => {
+          event.preventDefault();
+          loadReviews();
+        }}
+      >
+        <label>
+          <span className="text-xs font-black uppercase tracking-[0.22em] text-main/75">
+            Search
+          </span>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Customer or review text"
+            className="mt-1.5 h-11 w-full rounded-xl border border-neutral-200 px-4 text-sm font-semibold outline-none focus:border-main"
+          />
+        </label>
+        <label>
+          <span className="text-xs font-black uppercase tracking-[0.22em] text-main/75">
+            Visibility
+          </span>
+          <select
+            value={visibilityFilter}
+            onChange={(e) => setVisibilityFilter(e.target.value)}
+            className="mt-1.5 h-11 w-full rounded-xl border border-neutral-200 px-3 text-sm font-semibold outline-none focus:border-main"
+          >
+            <option value="visible">Visible</option>
+            <option value="hidden">Hidden</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+        <label>
+          <span className="text-xs font-black uppercase tracking-[0.22em] text-main/75">
+            Reply status
+          </span>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="mt-1.5 h-11 w-full rounded-xl border border-neutral-200 px-3 text-sm font-semibold outline-none focus:border-main"
+          >
+            <option value="">All</option>
+            <option value="pending">Needs reply</option>
+            <option value="replied">Replied</option>
+          </select>
+        </label>
+        <button
+          type="submit"
+          className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-main px-4 text-sm font-black text-white hover:bg-mainHover"
+        >
+          Apply
+        </button>
+      </form>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
         <section className="rounded-[24px] border border-neutral-200 bg-white shadow-lg shadow-main/5">
@@ -135,27 +242,34 @@ export default function ReviewsPage() {
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-sm font-black text-main">{review.customer}</p>
+                        <p className="text-sm font-black text-main">
+                          {review.customer}
+                        </p>
                         <p className="mt-1 text-xs font-semibold text-slate-400">
                           {review.product}
                         </p>
                       </div>
-                      <Badge tone={review.status === "replied" ? "green" : "yellow"}>
-                        {review.status === "replied" ? "Replied" : "Pending"}
-                      </Badge>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge tone={review.isHidden ? "gray" : "green"}>
+                          {review.isHidden ? "Hidden" : "Public"}
+                        </Badge>
+                        <Badge tone={review.status === "replied" ? "blue" : "yellow"}>
+                          {review.status === "replied" ? "Replied" : "No reply"}
+                        </Badge>
+                      </div>
                     </div>
                     <p className="mt-3 text-sm font-black text-amber-500">
                       {stars(review.rating)}
                     </p>
                     <p className="mt-3 line-clamp-2 text-sm font-semibold leading-6 text-slate-600">
-                      {review.review}
+                      {review.comment?.trim() || "Rating only"}
                     </p>
                   </button>
                 );
               })
             ) : (
               <p className="px-2 py-4 text-sm font-semibold text-slate-500">
-                No reviews yet.
+                No reviews match these filters.
               </p>
             )}
           </div>
@@ -165,17 +279,19 @@ export default function ReviewsPage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-sm font-black uppercase tracking-[0.35em] text-main/70">
-                Reply
+                Manage
               </p>
               <h2 className="mt-2 text-xl font-black text-main">Selected review</h2>
             </div>
-            <Icon name="chat" className="h-6 w-6 text-main/70" />
+            <Icon name="star" className="h-6 w-6 text-main/70" />
           </div>
 
           {selectedReview ? (
             <>
               <div className="mt-5 rounded-2xl border border-neutral-200 bg-mainSoft/30 p-4">
-                <p className="text-sm font-black text-main">{selectedReview.customer}</p>
+                <p className="text-sm font-black text-main">
+                  {selectedReview.customer}
+                </p>
                 <p className="mt-1 text-xs font-semibold text-slate-400">
                   {selectedReview.product}
                 </p>
@@ -183,8 +299,38 @@ export default function ReviewsPage() {
                   {stars(selectedReview.rating)}
                 </p>
                 <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
-                  {selectedReview.review}
+                  {selectedReview.comment?.trim() || "Rating only"}
                 </p>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {selectedReview.isHidden ? (
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => handleHide(false)}
+                    className="inline-flex h-10 items-center rounded-xl bg-emerald-600 px-3 text-xs font-black text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    Unhide
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => handleHide(true)}
+                    className="inline-flex h-10 items-center rounded-xl bg-slate-700 px-3 text-xs font-black text-white hover:bg-slate-800 disabled:opacity-60"
+                  >
+                    Hide
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={handleDelete}
+                  className="inline-flex h-10 items-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+                >
+                  Delete
+                </button>
               </div>
 
               <label className="mt-5 block">
@@ -214,7 +360,7 @@ export default function ReviewsPage() {
             </>
           ) : (
             <p className="mt-5 text-sm font-semibold text-slate-500">
-              Select a review to reply.
+              Select a review to manage.
             </p>
           )}
         </section>

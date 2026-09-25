@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { mediaField } = require("./media");
 
 const userSchema = new mongoose.Schema(
   {
@@ -28,10 +29,7 @@ const userSchema = new mongoose.Schema(
       enum: ["user", "admin"],
       default: "user",
     },
-    profilePic: {
-      type: String,
-      default: null,
-    },
+    profilePic: mediaField(),
     isVerified: {
       type: Boolean,
       default: false,

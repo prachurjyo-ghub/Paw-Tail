@@ -515,6 +515,70 @@ const validatePromoCode = async (req, res, next) => {
   }
 };
 
+const checkPromoCode = async (req, res, next) => {
+  try {
+    const name = String(req.body?.name || "").trim();
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: "Promo code name is required",
+      });
+    }
+
+    const promoCode = await findByName(name);
+
+    if (!promoCode) {
+      return res.status(404).json({
+        success: false,
+        message: "This code is not a valid checkout promo code",
+      });
+    }
+
+    const now = new Date();
+
+    if (!promoCode.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: "Promo code is inactive",
+      });
+    }
+
+    if (promoCode.startDate > now) {
+      return res.status(400).json({
+        success: false,
+        message: "Promo code has not started yet",
+      });
+    }
+
+    if (promoCode.expiryDate < now) {
+      return res.status(400).json({
+        success: false,
+        message: "Promo code has expired",
+      });
+    }
+
+    const discountLabel =
+      promoCode.discountType === "percentage"
+        ? `${promoCode.discountValue}% off`
+        : `Tk ${promoCode.discountValue} off`;
+
+    return res.status(200).json({
+      success: true,
+      message: "Promo code is ready for checkout",
+      promoCode: {
+        name: promoCode.name,
+        discountType: promoCode.discountType,
+        discountValue: promoCode.discountValue,
+        minOrder: promoCode.minOrder,
+      },
+      discountLabel,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getPromoCodes,
   postPromoCode,
@@ -522,4 +586,5 @@ module.exports = {
   deletePromoCode,
   togglePromoCodeActive,
   validatePromoCode,
+  checkPromoCode,
 };

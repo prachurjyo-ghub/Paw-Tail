@@ -8,6 +8,7 @@ import { HiOutlineShoppingBag } from "react-icons/hi2";
 import { useCart } from "@/components/CartProvider";
 import Container from "@/components/Container";
 import LoginPopover from "@/components/LoginPopover";
+import { CartPageSkeleton } from "@/components/skeletons/StorefrontSkeletons";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/api";
 import { clearCheckoutPrefs, readCheckoutPrefs } from "@/lib/checkoutStorage";
@@ -20,6 +21,8 @@ const formatPrice = (value) =>
   }).format(Number(value || 0));
 
 const getItemDiscount = (item) => {
+  if (item.variant) return null;
+
   const regularPrice = Number(item.product?.price);
   const discountPrice = Number(item.product?.discountPrice);
 
@@ -98,18 +101,29 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (!loaded) return;
 
-    if (!user) {
-      setProfileLoaded(true);
-      setIsLoginOpen(true);
-      return;
-    }
+    let cancelled = false;
 
-    setProfileLoaded(false);
+    queueMicrotask(() => {
+      if (cancelled) return;
 
-    fetchCart()
-      .catch(() => undefined)
-      .finally(() => setProfileLoaded(true));
-  }, [fetchCart, loaded, user?.id]);
+      if (!user) {
+        setProfileLoaded(true);
+        setIsLoginOpen(true);
+        return;
+      }
+
+      setProfileLoaded(false);
+      fetchCart()
+        .catch(() => undefined)
+        .finally(() => {
+          if (!cancelled) setProfileLoaded(true);
+        });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchCart, loaded, user]);
 
   useEffect(() => {
     if (!user || !cartItems.length) return;
@@ -120,32 +134,40 @@ export default function CheckoutPage() {
     })
       .then(setSummary)
       .catch(() => undefined);
-  }, [calculateCart, cartItems.length, prefs.deliveryZone, prefs.promoCode, user?.id]);
+  }, [calculateCart, cartItems.length, prefs.deliveryZone, prefs.promoCode, user]);
 
   useEffect(() => {
     if (!user || !profileLoaded || selectedAddressId !== null) return;
 
-    if (savedAddresses.length) {
-      const initialAddress = defaultAddress || savedAddresses[0];
-      setSelectedAddressId(initialAddress.id);
-      setShipping(mapSavedAddressToShipping(initialAddress));
-      return;
-    }
+    let cancelled = false;
 
-    setSelectedAddressId("");
-    setShipping({
-      ...emptyShipping,
-      name: user.fullName || "",
-      phone: user.phone || "",
+    queueMicrotask(() => {
+      if (cancelled) return;
+
+      if (savedAddresses.length) {
+        const initialAddress = defaultAddress || savedAddresses[0];
+        setSelectedAddressId(initialAddress.id);
+        setShipping(mapSavedAddressToShipping(initialAddress));
+        return;
+      }
+
+      setSelectedAddressId("");
+      setShipping({
+        ...emptyShipping,
+        name: user.fullName || "",
+        phone: user.phone || "",
+      });
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     defaultAddress,
     profileLoaded,
     savedAddresses,
     selectedAddressId,
-    user?.fullName,
-    user?.id,
-    user?.phone,
+    user,
   ]);
 
   const displaySummary = summary || {
@@ -236,16 +258,8 @@ export default function CheckoutPage() {
     }
   };
 
-  if (!loaded || (user && (!profileLoaded || isLoading))) {
-    return (
-      <main className="bg-white">
-        <Container className="py-8 lg:py-12">
-          <div className="rounded-lg border border-neutral-200 p-8 text-neutral-600">
-            Loading checkout...
-          </div>
-        </Container>
-      </main>
-    );
+  if (!loaded || isLoading || (user && !profileLoaded)) {
+    return <CartPageSkeleton checkout />;
   }
 
   if (user && !isLoading && !cartItems.length) {

@@ -260,7 +260,7 @@ export function CartProvider({ children }) {
     if (!loaded) return;
 
     if (!user) {
-      loadGuestCart();
+      queueMicrotask(loadGuestCart);
       return;
     }
 
@@ -274,7 +274,7 @@ export function CartProvider({ children }) {
       .finally(() => {
         isSyncingGuestCart.current = false;
       });
-  }, [fetchCart, loadGuestCart, loaded, syncGuestCartToServer, user?.id]);
+  }, [fetchCart, loadGuestCart, loaded, syncGuestCartToServer, user]);
 
   const value = useMemo(
     () => ({

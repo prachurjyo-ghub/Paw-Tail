@@ -1,8 +1,6 @@
 import { slugifyCategory, getAnimalGroupKeys } from "@/lib/catalogUtils";
-import { getAssetOrigin } from "@/lib/bannerApi";
-
-const apiBaseUrl =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
+import { API_BASE_URL } from "@/lib/apiBaseUrl";
+import { resolveMediaUrl } from "@/lib/media";
 
 const FETCH_TIMEOUT_MS = 5000;
 
@@ -18,27 +16,16 @@ const DEFAULT_ANIMALS = [
 
 export function resolveCatalogImageUrl(imagePath) {
   if (!imagePath) return null;
-  if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
-    return imagePath;
-  }
-
-  let normalized = imagePath.trim();
-  if (!normalized.startsWith("/")) {
-    // Seed/admin sometimes stores bare filenames (e.g. "icon-dog.svg")
-    // while Express serves them under /uploads/...
-    if (normalized.startsWith("icon-")) {
-      normalized = `/uploads/brands/${normalized}`;
-    } else {
-      normalized = `/uploads/products/${normalized}`;
-    }
-  }
-
-  return `${getAssetOrigin()}${normalized}`;
+  const legacyFolder =
+    typeof imagePath === "string" && imagePath.trim().startsWith("icon-")
+      ? "brands"
+      : "products";
+  return resolveMediaUrl(imagePath, { legacyFolder, width: 500 }) || null;
 }
 
 export async function getAnimalsFromApi() {
   try {
-    const response = await fetch(`${apiBaseUrl}/animals/get-animals`, {
+    const response = await fetch(`${API_BASE_URL}/animals/get-animals`, {
       cache: "no-store",
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
@@ -57,7 +44,7 @@ export async function getAnimalsFromApi() {
 
 export async function getCategoriesFromApi() {
   try {
-    const response = await fetch(`${apiBaseUrl}/categories/get-categories`, {
+    const response = await fetch(`${API_BASE_URL}/categories/get-categories`, {
       cache: "no-store",
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });

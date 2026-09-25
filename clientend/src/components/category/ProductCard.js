@@ -2,11 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { HiOutlineHeart, HiHeart, HiOutlinePlus } from "react-icons/hi2";
-import { TbShoppingBagPlus } from "react-icons/tb";
 
 import { useCart } from "@/components/CartProvider";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useWishlist } from "@/components/WishlistProvider";
 
 function formatPrice(value) {
@@ -20,29 +21,21 @@ function formatPrice(value) {
 }
 
 export default function ProductCard({ product }) {
+  const router = useRouter();
   const { addToCart } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const [isAdding, setIsAdding] = useState(false);
-  const [message, setMessage] = useState("");
-  const [selectedVariantId, setSelectedVariantId] = useState(() => {
-    const firstAvailable =
-      product.variants?.find((variant) => !variant.isOutOfStock) || product.variants?.[0];
-    return firstAvailable?._id || "";
-  });
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   const productId = product._id || null;
   const productSlug = product.slug || "";
   const isWishlistedNow = productId ? isWishlisted(productId) : false;
-  const selectedVariant =
-    product.variants?.find((variant) => variant._id === selectedVariantId) || null;
-  const displayPrice = selectedVariant?.price ?? product.price;
-  const oldPrice = selectedVariant?.compareAtPrice ?? product.compareAtPrice ?? null;
-  const discountPercentage = selectedVariant?.discountPercentage ?? product.discountPercentage ?? 0;
+  const displayPrice = product.price;
+  const oldPrice = product.compareAtPrice ?? product.oldPrice ?? null;
+  const discountPercentage = product.discountPercentage ?? 0;
   
-  const displayStock = selectedVariant?.stockQuantity ?? product.stockQuantity ?? 0;
-  const isOutOfStock = selectedVariant
-    ? selectedVariant.isOutOfStock
-    : product.isOutOfStock;
+  const displayStock = product.stockQuantity ?? 0;
+  const isOutOfStock = product.isOutOfStock;
 
   const handleWishlist = async (event) => {
     event.preventDefault();
@@ -59,13 +52,16 @@ export default function ProductCard({ product }) {
     event.preventDefault();
     event.stopPropagation();
     if (!productId || isOutOfStock) return;
-    if (product.hasVariants && !selectedVariantId) return;
+    if (product.hasVariants) {
+      router.push(`/product/${productSlug}`);
+      return;
+    }
 
     setIsAdding(true);
     try {
       await addToCart({
         productId,
-        variantId: selectedVariantId || null,
+        variantId: null,
         quantity: 1,
         product,
       });
@@ -86,14 +82,21 @@ export default function ProductCard({ product }) {
         {/* Media Area */}
         <div className="relative h-[168px] shrink-0 bg-[#f4efe6]">
           {product.imageUrl ? (
-            <Image
-              src={product.imageUrl}
-              alt={product.name}
-              fill
-              unoptimized
-              priority
-              className="object-contain p-[10px_16px] transition-transform duration-[0.35s] ease-in-out group-hover:scale-[1.04]"
-            />
+            <>
+              {!imageLoaded ? (
+                <Skeleton className="absolute inset-0 h-full w-full rounded-none" />
+              ) : null}
+              <Image
+                src={product.imageUrl}
+                alt={product.name}
+                fill
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                onLoad={() => setImageLoaded(true)}
+                className={`object-contain p-[10px_16px] transition-[transform,opacity] duration-[0.35s] ease-in-out group-hover:scale-[1.04] ${
+                  imageLoaded ? "opacity-100" : "opacity-0"
+                }`}
+              />
+            </>
           ) : (
             <div className="flex h-full w-full items-center justify-center text-sm text-[#173f31]/40">
               No Image
@@ -133,14 +136,21 @@ export default function ProductCard({ product }) {
         {/* Body Area */}
         <div className="flex flex-1 flex-col gap-1.5 p-[12px_14px_14px]">
           <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#5d6b65]">
-            {product.category?.name || "Uncategorized"} · {product.brand?.name || "PawTail"}
+            {product.category?.name || product.category || "Uncategorized"} ·{" "}
+            {typeof product.brand === "string"
+              ? product.brand
+              : product.brand?.name || "PawTail"}
           </p>
           <h3 className="line-clamp-2 text-[14.5px] font-bold leading-[1.3] tracking-[-0.02em] text-[#173f31]">
             {product.name}
           </h3>
 
           <div className="text-[12px] font-bold text-[#ee9322]">
-            ★★★★★ <em className="not-italic font-semibold text-[#5d6b65]">(12)</em>
+            {"★".repeat(Math.max(1, Math.min(5, Math.round(Number(product.averageRating) || 5))))}
+            <em className="not-italic font-semibold text-[#5d6b65]">
+              {" "}
+              ({Number(product.reviewCount) || 1})
+            </em>
           </div>
 
           {displayStock > 0 && displayStock < 10 && (
@@ -180,7 +190,9 @@ export default function ProductCard({ product }) {
               }`}
             >
               <HiOutlinePlus className="h-4 w-4" />
-              <span className="hidden sm:inline">{isAdding ? "Added" : "Add"}</span>
+              <span className="hidden sm:inline">
+                {product.hasVariants ? "Options" : isAdding ? "Added" : "Add"}
+              </span>
             </button>
           </div>
         </div>

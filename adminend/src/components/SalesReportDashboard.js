@@ -591,7 +591,7 @@ export default function SalesReportDashboard() {
   const report = useSalesData(reportType, anchorDate);
 
   return (
-    <DashboardShell activeItem="Sales Report">
+    <DashboardShell activeItem="Sales Reports">
       <ReportHeader
         reportType={reportType}
         anchorDate={anchorDate}

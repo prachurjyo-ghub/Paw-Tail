@@ -1,26 +1,39 @@
 const nodemailer = require("nodemailer");
+const env = require("./env");
+
+const maskRecipient = (recipient) => {
+  const value = String(recipient || "");
+  const atIndex = value.lastIndexOf("@");
+  return atIndex > 0 ? `***${value.slice(atIndex)}` : "[invalid recipient]";
+};
 
 const createMailTransporter = () => {
-  if (process.env.MAIL_DELIVERY_ENABLED !== "true") {
+  if (!env.mailDeliveryEnabled) {
     return {
       sendMail: async (message) => {
-        console.log(
-          `[mail disabled] ${message.subject} -> ${message.to}: ${message.text}`
+        console.warn(
+          `[mail disabled] delivery blocked: subject="${message.subject || "unknown"}" recipient=${maskRecipient(message.to)}`
         );
+
+        const error = new Error(
+          "Email delivery is disabled; the message was not sent"
+        );
+        error.code = "MAIL_DELIVERY_DISABLED";
+        throw error;
       },
     };
   }
 
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT),
-    secure: process.env.SMTP_SECURE === "true",
+    host: env.smtpHost,
+    port: env.smtpPort,
+    secure: env.smtpSecure,
     connectionTimeout: 5000,
     greetingTimeout: 5000,
     socketTimeout: 8000,
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      user: env.smtpUser,
+      pass: env.smtpPass,
     },
   });
 };

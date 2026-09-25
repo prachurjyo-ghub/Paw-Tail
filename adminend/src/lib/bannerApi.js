@@ -1,5 +1,6 @@
 import { API_BASE_URL, adminApi } from "@/lib/adminApi";
 import { getApiBaseUrl } from "@/lib/apiBaseUrl";
+import { resolveMediaUrl } from "@/lib/media";
 
 const REQUEST_TIMEOUT_MS = 12000;
 
@@ -18,13 +19,8 @@ export const bannerTypeLabels = {
 export const getAssetOrigin = () =>
   getApiBaseUrl().replace(/\/api\/v1\/?$/, "");
 
-export const getBannerImageUrl = (imageUrl) => {
-  if (!imageUrl) return "";
-  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
-    return imageUrl;
-  }
-  return `${getAssetOrigin()}${imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`}`;
-};
+export const getBannerImageUrl = (imageUrl) =>
+  resolveMediaUrl(imageUrl, { legacyFolder: "banners", width: 1920 });
 
 const fetchWithTimeout = async (url, options = {}) => {
   const controller = new AbortController();
@@ -92,6 +88,8 @@ export function buildBannerFormData({
   isActive = true,
   linkUrl = "",
   altText = "",
+  targetPages = [],
+  showCatalogHeader = true,
   imageFile = null,
 }) {
   const formData = new FormData();
@@ -101,6 +99,8 @@ export function buildBannerFormData({
   formData.append("isActive", String(Boolean(isActive)));
   formData.append("linkUrl", linkUrl.trim());
   formData.append("altText", altText.trim());
+  formData.append("targetPages", JSON.stringify(targetPages));
+  formData.append("showCatalogHeader", String(Boolean(showCatalogHeader)));
 
   if (imageFile) {
     formData.append("image", imageFile);

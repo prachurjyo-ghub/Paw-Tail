@@ -6,8 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import DashboardShell, { Badge, Icon } from "@/components/DashboardShell";
 import { useToast } from "@/components/ui/toast";
 import { adminApi } from "@/lib/adminApi";
+import { resolveMediaUrl } from "@/lib/media";
 import { formatTk, mapBackendOrderToAdminRow } from "@/lib/orderApi";
-import { API_BASE_URL } from "@/lib/adminApi";
 
 function formatDate(value) {
   if (!value) return "—";
@@ -29,9 +29,13 @@ function formatAddress(address = {}) {
 }
 
 function getImageUrl(src) {
-  if (!src) return null;
-  if (src.startsWith("http")) return src;
-  return `${API_BASE_URL.replace("/api/v1", "")}${src}`;
+  return (
+    resolveMediaUrl(src, {
+      legacyFolder: "users",
+      width: 240,
+      crop: "fill",
+    }) || null
+  );
 }
 
 export default function AccountDetailsDashboard({ accountId }) {
@@ -75,7 +79,7 @@ export default function AccountDetailsDashboard({ accountId }) {
   }, [orders]);
 
   return (
-    <DashboardShell activeItem="Customer Management">
+    <DashboardShell activeItem="Customers">
       <div className="rounded-[24px] border border-neutral-200 bg-white px-5 py-5 shadow-lg shadow-main/5 md:px-6">
         <Link
           href="/dashboard/customer-management"
@@ -117,10 +121,11 @@ export default function AccountDetailsDashboard({ accountId }) {
                   </p>
                   <div className="mt-2 flex items-center gap-3">
                     {account.profilePic ? (
-                      <img
-                        src={getImageUrl(account.profilePic)}
-                        alt={account.name}
-                        className="h-12 w-12 rounded-2xl border border-neutral-200 object-cover"
+                      <span
+                        role="img"
+                        aria-label={`${account.name} profile`}
+                        className="h-12 w-12 shrink-0 rounded-2xl border border-neutral-200 bg-cover bg-center"
+                        style={{ backgroundImage: `url(${getImageUrl(account.profilePic)})` }}
                       />
                     ) : null}
                     <h2 className="text-xl font-black text-main">{account.name}</h2>

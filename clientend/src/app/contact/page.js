@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import Script from "next/script";
 import "./contact.css";
+
+import LoginPopover from "@/components/LoginPopover";
+import { useAuth } from "@/context/AuthContext";
+import { INQUIRY_TOPICS, submitInquiry } from "@/lib/inquiryApi";
 
 const STORES = [
   {
@@ -79,11 +82,21 @@ const FAQS = [
 const PETS = ["Dog", "Cat", "Fish", "Bird", "Small pet"];
 
 export default function ContactPage() {
+  const { user } = useAuth();
   const [selectedPet, setSelectedPet] = useState("Dog");
   const [activeStoreId, setActiveStoreId] = useState("gulshan");
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+  const [formError, setFormError] = useState("");
+  const [showSignupPrompt, setShowSignupPrompt] = useState(false);
+  const [nameValue, setNameValue] = useState(null);
+  const [phoneValue, setPhoneValue] = useState(null);
+  const [emailValue, setEmailValue] = useState(null);
+  const displayedName = nameValue ?? user?.name ?? "";
+  const displayedPhone = phoneValue ?? user?.phone ?? "";
+  const displayedEmail = emailValue ?? user?.email ?? "";
 
   const mapInstanceRef = useRef(null);
   const markersRef = useRef({});
@@ -164,11 +177,36 @@ export default function ContactPage() {
     setTimeout(() => setToastMessage(""), 2600);
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
     const form = e.currentTarget;
     if (!form.reportValidity()) return;
-    setIsSubmitted(true);
+
+    setFormError("");
+    setIsSubmitting(true);
+
+    const formData = new FormData(form);
+    const payload = {
+      name: String(formData.get("name") || "").trim(),
+      phone: String(formData.get("phone") || "").trim(),
+      email: String(formData.get("email") || "").trim(),
+      pet: selectedPet,
+      topic: String(formData.get("topic") || "").trim(),
+      message: String(formData.get("message") || "").trim(),
+    };
+
+    try {
+      const result = await submitInquiry(payload);
+      setIsSubmitted(true);
+      showToast("Message sent to PawTail care.");
+      if (result.requiresAuthPrompt) {
+        setShowSignupPrompt(true);
+      }
+    } catch (error) {
+      setFormError(error.message || "Could not send your message.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -199,7 +237,7 @@ export default function ContactPage() {
               </p>
             </div>
             <div className="hero-photo">
-              <img
+              <Image
                 src="/assets/hero-pets.jpg"
                 alt="A golden retriever and a grey cat resting together on a cream sofa"
                 width={500}
@@ -351,6 +389,8 @@ export default function ContactPage() {
                         name="name"
                         autoComplete="name"
                         required
+                        value={displayedName}
+                        onChange={(event) => setNameValue(event.target.value)}
                         placeholder="Nusrat Rahman"
                       />
                     </div>
@@ -363,22 +403,22 @@ export default function ContactPage() {
                         inputMode="tel"
                         autoComplete="tel"
                         required
+                        value={displayedPhone}
+                        onChange={(event) => setPhoneValue(event.target.value)}
                         placeholder="01XXXXXXXXX"
                       />
                     </div>
                   </div>
                   <div className="field">
-                    <label htmlFor="email">
-                      Email{" "}
-                      <span style={{ fontWeight: 500, color: "var(--muted)" }}>
-                        (optional)
-                      </span>
-                    </label>
+                    <label htmlFor="email">Email</label>
                     <input
                       id="email"
                       name="email"
                       type="email"
                       autoComplete="email"
+                      required
+                      value={displayedEmail}
+                      onChange={(event) => setEmailValue(event.target.value)}
                       placeholder="you@email.com"
                     />
                   </div>
@@ -396,6 +436,7 @@ export default function ContactPage() {
                             value={pet}
                             checked={selectedPet === pet}
                             onChange={() => setSelectedPet(pet)}
+                            required
                           />
                           {pet}
                         </label>
@@ -408,12 +449,11 @@ export default function ContactPage() {
                       <option value="" disabled>
                         Choose a topic
                       </option>
-                      <option>Order & delivery</option>
-                      <option>Nutrition advice</option>
-                      <option>Product question</option>
-                      <option>Visit a store</option>
-                      <option>Returns & refunds</option>
-                      <option>Wholesale / bulk</option>
+                      {INQUIRY_TOPICS.map((topic) => (
+                        <option key={topic} value={topic}>
+                          {topic}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div className="field">
@@ -425,8 +465,13 @@ export default function ContactPage() {
                       placeholder="Share your order number, your pet's age and diet, or the store you'd like to visit…"
                     ></textarea>
                   </div>
-                  <button className="submit" type="submit">
-                    Send message
+                  {formError ? (
+                    <p className="fineprint" style={{ color: "#b42318" }}>
+                      {formError}
+                    </p>
+                  ) : null}
+                  <button className="submit" type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Sending..." : "Send message"}
                     <svg
                       width="16"
                       height="16"
@@ -445,7 +490,7 @@ export default function ContactPage() {
                   <p className="fineprint">
                     We never share your details. Replies usually land within 2
                     hours, 8am–11pm. Urgent pet questions go straight to
-                    WhatsApp.
+                    WhatsApp. Sign up to track replies in your profile.
                   </p>
                 </form>
               ) : (
@@ -471,6 +516,9 @@ export default function ContactPage() {
                     A PawTail care specialist will write back shortly. For
                     anything time-sensitive, WhatsApp us — our pet experts are on
                     24/7.
+                    {!user
+                      ? " Create an account to track this inquiry and see replies in your profile."
+                      : " You can track this inquiry and any replies in your profile."}
                   </p>
                 </div>
               )}
@@ -529,7 +577,7 @@ export default function ContactPage() {
               </div>
 
               <div className="hq">
-                <img
+                <Image
                   src="/assets/store-dhanmondi.jpg"
                   alt="PawTail Dhanmondi storefront with an orange awning and bicycle out front"
                   width={400}
@@ -605,7 +653,7 @@ export default function ContactPage() {
                     type="button"
                     onClick={() => handleStoreSelect(s.id)}
                   >
-                    <img src={s.img} alt={s.alt} width={148} height={148} />
+                    <Image src={s.img} alt={s.alt} width={148} height={148} />
                     <div className="info">
                       <h3>{s.name}</h3>
                       <p>{s.blurb}</p>
@@ -741,6 +789,17 @@ export default function ContactPage() {
           {toastMessage}
         </div>
       )}
+
+      <LoginPopover
+        open={showSignupPrompt}
+        onClose={() => setShowSignupPrompt(false)}
+        initialMode="signup"
+        description="Sign up to track this inquiry and see care team replies in your profile."
+        onSuccess={() => {
+          setShowSignupPrompt(false);
+          showToast("Account ready — check Inquiries in your profile.");
+        }}
+      />
     </div>
   );
 }

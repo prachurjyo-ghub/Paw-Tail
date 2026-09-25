@@ -15,13 +15,13 @@ const quickActions = [
 
 function HeaderPanel({ todayRevenue }) {
   return (
-    <div className="rounded-[28px] border border-slate-200 bg-white px-6 py-7 shadow-lg shadow-slate-200/60 md:px-8">
+    <div className="rounded-[22px] border border-slate-200 bg-white px-4 py-5 shadow-lg shadow-slate-200/60 md:rounded-[28px] md:px-8 md:py-7">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <p className="text-sm font-black uppercase tracking-[0.35em] text-main">
             Overview
           </p>
-          <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">
+          <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 md:mt-3 md:text-4xl">
             Dashboard
           </h1>
           <p className="mt-4 max-w-4xl text-sm font-semibold leading-7 text-slate-400 md:text-base">
@@ -232,15 +232,15 @@ export default function AdminDashboard() {
     <DashboardShell activeItem="Dashboard">
       <HeaderPanel todayRevenue={todayRevenue} />
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 md:mt-6 md:gap-4 xl:grid-cols-4">
         {metrics.map(([title, value, helper, color]) => (
           <article
             key={title}
-            className="relative overflow-hidden rounded-[22px] border border-slate-200 bg-white p-5 shadow-lg shadow-slate-200/60"
+            className="relative overflow-hidden rounded-[18px] border border-slate-200 bg-white p-4 shadow-lg shadow-slate-200/60 md:rounded-[22px] md:p-5"
           >
             <div className={`absolute inset-x-0 top-0 h-1.5 ${color}`} />
             <p className="text-sm font-black text-slate-500">{title}</p>
-            <p className="mt-4 text-3xl font-black tracking-tight text-slate-950">
+            <p className="mt-3 text-2xl font-black tracking-tight text-slate-950 md:mt-4 md:text-3xl">
               {value}
             </p>
             <p className="mt-3 text-xs font-bold leading-5 text-slate-400">
@@ -263,7 +263,26 @@ export default function AdminDashboard() {
               Latest customer activity
             </p>
           </div>
-          <div className="overflow-x-auto">
+          <div className="space-y-3 p-4 md:hidden">
+            {recentOrders.length === 0 ? (
+              <p className="py-6 text-center text-sm font-bold text-slate-400">No recent orders found.</p>
+            ) : recentOrders.map(([id, customer, total, payment, status]) => (
+              <div key={id} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-main">{id}</p>
+                    <p className="mt-1 truncate text-xs font-bold text-slate-500">{customer}</p>
+                  </div>
+                  <Badge tone={status === "Delivered" ? "green" : status === "Processing" ? "blue" : "gray"}>{status}</Badge>
+                </div>
+                <div className="mt-3 flex items-center justify-between border-t border-slate-200/70 pt-3">
+                  <Badge tone={payment === "Paid" ? "green" : "yellow"}>{payment}</Badge>
+                  <p className="text-sm font-black text-slate-900">{total}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[720px] text-left">
               <thead>
                 <tr className="border-b border-slate-100 text-xs font-black uppercase tracking-[0.25em] text-slate-300">

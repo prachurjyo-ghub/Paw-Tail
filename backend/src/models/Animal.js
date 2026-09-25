@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { mediaField } = require("./media");
 
 const animalSchema = new mongoose.Schema(
   {
@@ -18,11 +19,7 @@ const animalSchema = new mongoose.Schema(
       default: "🐾",
       trim: true,
     },
-    image: {
-      type: String,
-      default: null,
-      trim: true,
-    },
+    image: mediaField(),
     isActive: {
       type: Boolean,
       default: true,

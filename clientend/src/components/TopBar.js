@@ -1,4 +1,3 @@
-import Container from "@/components/Container";
 import {
   HiOutlineMapPin,
   HiOutlineTruck,
@@ -25,21 +24,34 @@ const topBarItems = [
   },
 ];
 
+function TopBarTrack({ ariaHidden = false }) {
+  return (
+    <div
+      className="flex shrink-0 items-center gap-10 sm:gap-14 pr-10 sm:pr-14"
+      aria-hidden={ariaHidden || undefined}
+    >
+      {topBarItems.map(({ text, icon: Icon }) => (
+        <span
+          key={text}
+          className="flex shrink-0 items-center gap-2.5 text-xs font-medium opacity-95 sm:text-sm"
+        >
+          <Icon className="text-base text-white/90" aria-hidden />
+          {text}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function TopBar() {
   return (
-    <div className="bg-main text-white overflow-hidden">
-      <Container>
-        <div className="flex min-h-8 sm:min-h-11 items-center gap-4 text-xs sm:text-sm font-medium whitespace-nowrap">
-          <div className="flex w-full animate-marquee sm:animate-none sm:w-auto items-center gap-6 sm:gap-4 justify-start sm:justify-between">
-            {topBarItems.map(({ text, icon: Icon }) => (
-              <span key={text} className="flex items-center gap-2 opacity-95 shrink-0">
-                <Icon className="text-base text-white/90" />
-                {text}
-              </span>
-            ))}
-          </div>
+    <div className="overflow-hidden bg-main text-white">
+      <div className="flex min-h-8 items-center sm:min-h-11">
+        <div className="flex w-max animate-marquee whitespace-nowrap will-change-transform">
+          <TopBarTrack />
+          <TopBarTrack ariaHidden />
         </div>
-      </Container>
+      </div>
     </div>
   );
 }

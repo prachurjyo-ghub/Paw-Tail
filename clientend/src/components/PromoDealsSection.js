@@ -1,17 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { saveCheckoutPrefs, readCheckoutPrefs } from "@/lib/checkoutStorage";
+import {
+  checkCheckoutPromoCode,
+  fetchPromoDeals,
+} from "@/lib/promoDealApi";
+import { PromoDealsSkeleton } from "@/components/skeletons/StorefrontSkeletons";
 import styles from "./PromoDealsSection.module.css";
-
-const VOUCHER_CODES = {
-  PAWMON30: "30% off applied to your cart — happy monsoon!",
-  FREESHIP: "Free delivery unlocked for this weekend.",
-  NEWPAW500: "৳500 off your first box — welcome aboard!",
-};
-
-const END_OFFSET_MS = ((2 * 24 + 14) * 3600 + 36 * 60 + 52) * 1000;
 
 function pad(n) {
   return (n < 10 ? "0" : "") + n;
@@ -89,18 +87,128 @@ function CodeButton({ code, className = "", onCopied }) {
   );
 }
 
+function useCountdown(endsAt) {
+  const [time, setTime] = useState({ d: "00", h: "00", m: "00", s: "00" });
+
+  useEffect(() => {
+    if (!endsAt) return undefined;
+    const end = new Date(endsAt).getTime();
+    if (Number.isNaN(end)) return undefined;
+
+    const tick = () => {
+      const s = Math.max(0, Math.floor((end - Date.now()) / 1000));
+      setTime({
+        d: pad(Math.floor(s / 86400)),
+        h: pad(Math.floor((s % 86400) / 3600)),
+        m: pad(Math.floor((s % 3600) / 60)),
+        s: pad(s % 60),
+      });
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [endsAt]);
+
+  return time;
+}
+
+function TicketCard({ card, variant, delay, onCopied }) {
+  const time = useCountdown(card.showCountdown ? card.endsAt : null);
+  const isA = variant === "A";
+  const ringId = isA ? "ptCirDealA" : "ptCirDealB";
+
+  return (
+    <div
+      className={`${styles.tw} ${isA ? styles.wTicket1 : styles.wTicket2} ${styles.reveal}`}
+      style={{ "--pt-d": delay }}
+    >
+      <div className={`${styles.ticket} ${isA ? styles.t1 : styles.t2}`}>
+        <div className={styles.main}>
+          <span className={styles.kick}>
+            <i />
+            {card.kicker}
+          </span>
+          <h3>{card.title}</h3>
+          {!isA && (card.amountLabel || card.amountSuffix) ? (
+            <div className={styles.big}>
+              {card.amountLabel}{" "}
+              {card.amountSuffix ? <em>{card.amountSuffix}</em> : null}
+            </div>
+          ) : null}
+          <p>{card.description}</p>
+          {card.showCountdown && card.endsAt ? (
+            <div className={styles.cd} aria-label="Offer ends in">
+              <span className={styles.u}>
+                <b>{time.d}</b>
+                <span>days</span>
+              </span>
+              <span className={styles.u}>
+                <b>{time.h}</b>
+                <span>hrs</span>
+              </span>
+              <span className={styles.u}>
+                <b>{time.m}</b>
+                <span>min</span>
+              </span>
+              <span className={styles.u}>
+                <b>{time.s}</b>
+                <span>sec</span>
+              </span>
+            </div>
+          ) : (
+            <div className={styles.spacer} />
+          )}
+          <Link
+            href={card.buttonHref || "/categories"}
+            className={`${styles.btn} ${isA ? styles.btnO : styles.btnG}`}
+          >
+            {card.buttonLabel || "Shop now"}
+            <ArrowIcon />
+          </Link>
+        </div>
+        <div className={styles.stub}>
+          <span className={styles.stubL}>Tap to copy</span>
+          {card.code ? <CodeButton code={card.code} onCopied={onCopied} /> : null}
+          <div className={styles.barcode} aria-hidden="true" />
+          <span className={styles.barcodeL}>{card.barcodeLabel || card.code}</span>
+        </div>
+        <i className={styles.tear} aria-hidden="true" />
+      </div>
+      <i className={`${styles.notch} ${styles.nt}`} />
+      <i className={`${styles.notch} ${styles.nb}`} />
+      <div className={styles.stamp} aria-hidden="true">
+        <svg className={styles.ring} viewBox="0 0 120 120">
+          <defs>
+            <path
+              id={ringId}
+              d="M60,60 m-45,0 a45,45 0 1,1 90,0 a45,45 0 1,1 -90,0"
+            />
+          </defs>
+          <text>
+            <textPath href={`#${ringId}`}>
+              {card.stampRingText || "PAWTAIL DEAL • PAWTAIL DEAL •"}
+            </textPath>
+          </text>
+        </svg>
+        <b>{card.amountLabel || (isA ? "DEAL" : "FREE")}</b>
+      </div>
+    </div>
+  );
+}
+
 export default function PromoDealsSection() {
   const rootRef = useRef(null);
-  const [time, setTime] = useState({ d: "02", h: "14", m: "36", s: "52" });
+  const [deal, setDeal] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalShow, setModalShow] = useState(false);
   const [input, setInput] = useState("");
   const [msg, setMsg] = useState("");
   const [shake, setShake] = useState(false);
   const [ok, setOk] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState({ show: false, text: "" });
   const toastTimer = useRef(null);
-  const endRef = useRef(0);
   const inputRef = useRef(null);
 
   const showToast = useCallback((text) => {
@@ -118,6 +226,23 @@ export default function PromoDealsSection() {
   );
 
   useEffect(() => {
+    let alive = true;
+    fetchPromoDeals()
+      .then((data) => {
+        if (alive) setDeal(data);
+      })
+      .catch(() => {
+        if (alive) setDeal(null);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
     return () => {
       document.body.style.overflow = "";
       clearTimeout(toastTimer.current);
@@ -125,24 +250,8 @@ export default function PromoDealsSection() {
   }, []);
 
   useEffect(() => {
-    endRef.current = Date.now() + END_OFFSET_MS;
-    const tick = () => {
-      const s = Math.max(0, Math.floor((endRef.current - Date.now()) / 1000));
-      setTime({
-        d: pad(Math.floor(s / 86400)),
-        h: pad(Math.floor((s % 86400) / 3600)),
-        m: pad(Math.floor((s % 3600) / 60)),
-        s: pad(s % 60),
-      });
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
     const root = rootRef.current;
-    if (!root) return;
+    if (!root || !deal?.visible) return undefined;
 
     const nodes = root.querySelectorAll(`.${styles.reveal}`);
     if (!("IntersectionObserver" in window)) {
@@ -164,7 +273,7 @@ export default function PromoDealsSection() {
 
     nodes.forEach((el) => io.observe(el));
     return () => io.disconnect();
-  }, []);
+  }, [deal]);
 
   const closeModal = useCallback(() => {
     setModalShow(false);
@@ -193,6 +302,10 @@ export default function PromoDealsSection() {
     };
   }, [modalOpen, closeModal]);
 
+  const activeCards = useMemo(() => deal?.activeCards || [], [deal]);
+  const deskCodes = useMemo(() => deal?.deskCodes || [], [deal]);
+  const single = activeCards.length === 1;
+
   const openModal = () => {
     setOk(null);
     setMsg("");
@@ -201,23 +314,49 @@ export default function PromoDealsSection() {
     setModalOpen(true);
   };
 
-  const handleRedeem = (e) => {
+  const handleRedeem = async (e) => {
     e.preventDefault();
     const code = input.trim().toUpperCase();
-    if (VOUCHER_CODES[code]) {
-      setOk({ code, text: VOUCHER_CODES[code] });
-      setMsg("");
-      showToast(`${code} redeemed successfully`);
+    if (!code) {
+      setMsg("Please enter a code first.");
+      setShake(false);
+      requestAnimationFrame(() => setShake(true));
       return;
     }
-    setMsg(
-      code
-        ? `Hmm, “${code}” isn't wagging any tails. Try PAWMON30.`
-        : "Please enter a code first."
-    );
-    setShake(false);
-    requestAnimationFrame(() => setShake(true));
+
+    setSaving(true);
+    setMsg("");
+    try {
+      const data = await checkCheckoutPromoCode(code);
+      const prefs = readCheckoutPrefs();
+      saveCheckoutPrefs({
+        promoCode: data.promoCode?.name || code,
+        deliveryZone: prefs.deliveryZone || "inside-dhaka",
+      });
+      setOk({
+        code: data.promoCode?.name || code,
+        text: `${data.discountLabel || "Discount"} saved for checkout. Open your cart to apply it.`,
+      });
+      showToast(`${code} ready for checkout`);
+    } catch (error) {
+      setMsg(
+        error.message ||
+          "This code is not a valid checkout promo code."
+      );
+      setShake(false);
+      requestAnimationFrame(() => setShake(true));
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return <PromoDealsSkeleton />;
+  }
+
+  if (!deal?.visible) {
+    return null;
+  }
 
   return (
     <>
@@ -239,138 +378,23 @@ export default function PromoDealsSection() {
 
         <div className={styles.wrap}>
           <div className={`${styles.head} ${styles.reveal}`}>
-            <span className={styles.kicker}>Deals &amp; vouchers</span>
-            <h2>Paw-some deals this week</h2>
-            <p>
-              Two limited-time treats and a voucher counter — tap a code to copy
-              it, or redeem your own at the desk below.
-            </p>
+            <span className={styles.kicker}>{deal.sectionKicker}</span>
+            <h2>{deal.sectionTitle}</h2>
+            <p>{deal.sectionSubtitle}</p>
           </div>
 
-          <div className={styles.tickets}>
-            <div
-              className={`${styles.tw} ${styles.wTicket1} ${styles.reveal}`}
-              style={{ "--pt-d": "0.05s" }}
-            >
-              <div className={`${styles.ticket} ${styles.t1}`}>
-                <div className={styles.main}>
-                  <span className={styles.kick}>
-                    <i />
-                    Limited time · Monsoon deal
-                  </span>
-                  <h3>Monsoon Pet Fest</h3>
-                  <p>
-                    Rainy-day beds, flea care &amp; fishy favourites — up to{" "}
-                    <b>30% off</b> storewide while the clouds play.
-                  </p>
-                  <div className={styles.cd} aria-label="Offer ends in">
-                    <span className={styles.u}>
-                      <b>{time.d}</b>
-                      <span>days</span>
-                    </span>
-                    <span className={styles.u}>
-                      <b>{time.h}</b>
-                      <span>hrs</span>
-                    </span>
-                    <span className={styles.u}>
-                      <b>{time.m}</b>
-                      <span>min</span>
-                    </span>
-                    <span className={styles.u}>
-                      <b>{time.s}</b>
-                      <span>sec</span>
-                    </span>
-                  </div>
-                  <Link
-                    href="/categories"
-                    className={`${styles.btn} ${styles.btnO}`}
-                  >
-                    Shop the sale
-                    <ArrowIcon />
-                  </Link>
-                </div>
-                <div className={styles.stub}>
-                  <span className={styles.stubL}>Tap to copy</span>
-                  <CodeButton code="PAWMON30" onCopied={handleCopied} />
-                  <div className={styles.barcode} aria-hidden="true" />
-                  <span className={styles.barcodeL}>PAW·MON·30</span>
-                </div>
-                <i className={styles.tear} aria-hidden="true" />
-              </div>
-              <i className={`${styles.notch} ${styles.nt}`} />
-              <i className={`${styles.notch} ${styles.nb}`} />
-              <div className={styles.stamp} aria-hidden="true">
-                <svg className={styles.ring} viewBox="0 0 120 120">
-                  <defs>
-                    <path
-                      id="ptCir1"
-                      d="M60,60 m-45,0 a45,45 0 1,1 90,0 a45,45 0 1,1 -90,0"
-                    />
-                  </defs>
-                  <text>
-                    <textPath href="#ptCir1">
-                      PAWTAIL DEAL • MONSOON FEST • PAWTAIL DEAL •
-                    </textPath>
-                  </text>
-                </svg>
-                <b>30%</b>
-              </div>
-            </div>
-
-            <div
-              className={`${styles.tw} ${styles.wTicket2} ${styles.reveal}`}
-              style={{ "--pt-d": "0.14s" }}
-            >
-              <div className={`${styles.ticket} ${styles.t2}`}>
-                <div className={styles.main}>
-                  <span className={styles.kick}>
-                    <i />
-                    Weekend only
-                  </span>
-                  <h3>Free Shipping Weekend</h3>
-                  <div className={styles.big}>
-                    ৳0 <em>delivery</em>
-                  </div>
-                  <p>
-                    Every order, every district — no minimum spend, Friday to
-                    Sunday.
-                  </p>
-                  <div className={styles.spacer} />
-                  <Link
-                    href="/categories"
-                    className={`${styles.btn} ${styles.btnG}`}
-                  >
-                    Order now
-                    <ArrowIcon />
-                  </Link>
-                </div>
-                <div className={styles.stub}>
-                  <span className={styles.stubL}>Tap to copy</span>
-                  <CodeButton code="FREESHIP" onCopied={handleCopied} />
-                  <div className={styles.barcode} aria-hidden="true" />
-                  <span className={styles.barcodeL}>PAW·SHIP·00</span>
-                </div>
-                <i className={styles.tear} aria-hidden="true" />
-              </div>
-              <i className={`${styles.notch} ${styles.nt}`} />
-              <i className={`${styles.notch} ${styles.nb}`} />
-              <div className={styles.stamp} aria-hidden="true">
-                <svg className={styles.ring} viewBox="0 0 120 120">
-                  <defs>
-                    <path
-                      id="ptCir2"
-                      d="M60,60 m-45,0 a45,45 0 1,1 90,0 a45,45 0 1,1 -90,0"
-                    />
-                  </defs>
-                  <text>
-                    <textPath href="#ptCir2">
-                      FREE DELIVERY • FRI–SUN • FREE DELIVERY •
-                    </textPath>
-                  </text>
-                </svg>
-                <b>FREE</b>
-              </div>
-            </div>
+          <div
+            className={`${styles.tickets} ${single ? styles.ticketsSingle : ""}`}
+          >
+            {activeCards.map((card, index) => (
+              <TicketCard
+                key={card.key || card.code || index}
+                card={card}
+                variant={card.key || (index === 0 ? "A" : "B")}
+                delay={index === 0 ? "0.05s" : "0.14s"}
+                onCopied={handleCopied}
+              />
+            ))}
           </div>
 
           <div
@@ -379,28 +403,19 @@ export default function PromoDealsSection() {
           >
             <div className={styles.desk}>
               <div className={styles.deskTxt}>
-                <b>Have a voucher code?</b>
-                <span>
-                  Redeem it at the counter — discounts stack with sale prices.
-                </span>
+                <b>{deal.deskTitle}</b>
+                <span>{deal.deskSubtitle}</span>
               </div>
               <div className={styles.deskCodes}>
                 <span className={styles.hint}>This week&apos;s codes</span>
-                <CodeButton
-                  code="PAWMON30"
-                  className={styles.codeS}
-                  onCopied={handleCopied}
-                />
-                <CodeButton
-                  code="FREESHIP"
-                  className={styles.codeS}
-                  onCopied={handleCopied}
-                />
-                <CodeButton
-                  code="NEWPAW500"
-                  className={styles.codeS}
-                  onCopied={handleCopied}
-                />
+                {deskCodes.map((code) => (
+                  <CodeButton
+                    key={code}
+                    code={code}
+                    className={styles.codeS}
+                    onCopied={handleCopied}
+                  />
+                ))}
               </div>
               <button
                 type="button"
@@ -445,8 +460,8 @@ export default function PromoDealsSection() {
               </span>
               <h3 id="ptModalT">Redeem a voucher</h3>
               <p>
-                Punch in your code — we&apos;ll wag-check it instantly and attach
-                it to your cart.
+                Enter a real checkout promo code. We&apos;ll save it for your
+                cart and checkout.
               </p>
             </div>
             {!ok ? (
@@ -461,8 +476,12 @@ export default function PromoDealsSection() {
                   autoComplete="off"
                   spellCheck={false}
                 />
-                <button className={`${styles.btn} ${styles.btnO}`} type="submit">
-                  Apply
+                <button
+                  className={`${styles.btn} ${styles.btnO}`}
+                  type="submit"
+                  disabled={saving}
+                >
+                  {saving ? "Checking..." : "Apply"}
                 </button>
               </form>
             ) : null}
@@ -477,6 +496,9 @@ export default function PromoDealsSection() {
                 </svg>
                 <b>{ok.code}</b>
                 <span>{ok.text}</span>
+                <Link href="/cart" className={`${styles.btn} ${styles.btnO}`}>
+                  Go to cart
+                </Link>
                 <button
                   type="button"
                   className={`${styles.btn} ${styles.btnGhost}`}

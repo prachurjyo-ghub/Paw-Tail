@@ -8,6 +8,7 @@ const {
   deletePromoCode,
   togglePromoCodeActive,
   validatePromoCode,
+  checkPromoCode,
 } = require("../../controllers/v1/promoCodeController.js");
 
 router.get("/get-promo-codes", protect, adminOnly, getPromoCodes);
@@ -21,5 +22,6 @@ router.patch(
   togglePromoCodeActive
 );
 router.post("/validate-promo-code", protect, validatePromoCode);
+router.post("/check-promo-code", checkPromoCode);
 
 module.exports = router;

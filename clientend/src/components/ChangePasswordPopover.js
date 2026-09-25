@@ -29,14 +29,23 @@ export default function ChangePasswordPopover({ open, onClose }) {
 
   useEffect(() => {
     if (!open) return;
-    setStep("form");
-    setOtp(["", "", "", "", "", ""]);
-    setError("");
-    setPasswords({ currentPassword: "", newPassword: "" });
-    setIsSubmitting(false);
-    setShowCurrent(false);
-    setShowNew(false);
-    setShowConfirm(false);
+
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setStep("form");
+      setOtp(["", "", "", "", "", ""]);
+      setError("");
+      setPasswords({ currentPassword: "", newPassword: "" });
+      setIsSubmitting(false);
+      setShowCurrent(false);
+      setShowNew(false);
+      setShowConfirm(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
 
   const handleFormSubmit = async (event) => {

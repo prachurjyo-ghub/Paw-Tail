@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   PiArrowDownBold,
   PiArrowRightBold,
@@ -18,8 +18,10 @@ import {
 } from "react-icons/pi";
 
 import styles from "./HomeHero.module.css";
+import { getBannerImageUrl } from "@/lib/bannerApi";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const SLIDES = [
+const DEFAULT_SLIDES = [
   {
     src: "/home-pet-banner.png",
     alt: "Dog, cat, fish and rabbit with PawTail essentials",
@@ -78,25 +80,44 @@ const STATS = [
   ["64", "Districts served"],
 ];
 
-export default function HomeBannerCarousel() {
+export default function HomeBannerCarousel({ initialHeroBanners = [] }) {
   const [activeSlide, setActiveSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
+  const [loadedSlideSources, setLoadedSlideSources] = useState([]);
   const stageRef = useRef(null);
   const tiltRef = useRef(null);
+  const slides = useMemo(() => {
+    const uploadedSlides = initialHeroBanners
+      .filter((banner) => banner?.imageUrl)
+      .slice(0, 3)
+      .map((banner) => ({
+        src: getBannerImageUrl(banner.imageUrl),
+        alt: banner.name || "PawTail hero banner",
+        caption: banner.name || "PawTail collection",
+      }));
+
+    return [...uploadedSlides, ...DEFAULT_SLIDES].slice(0, 3);
+  }, [initialHeroBanners]);
 
   const showSlide = useCallback((index) => {
-    setActiveSlide((index + SLIDES.length) % SLIDES.length);
+    setActiveSlide((index + slides.length) % slides.length);
+  }, [slides.length]);
+
+  const markSlideLoaded = useCallback((src) => {
+    setLoadedSlideSources((current) =>
+      current.includes(src) ? current : [...current, src]
+    );
   }, []);
 
   useEffect(() => {
     if (isPaused) return undefined;
     const timer = window.setInterval(
-      () => setActiveSlide((current) => (current + 1) % SLIDES.length),
+      () => setActiveSlide((current) => (current + 1) % slides.length),
       5600,
     );
     return () => window.clearInterval(timer);
-  }, [isPaused]);
+  }, [isPaused, slides.length]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -236,7 +257,7 @@ export default function HomeBannerCarousel() {
               aria-roledescription="carousel"
               aria-label="PawTail collections"
             >
-              {SLIDES.map((slide, index) => (
+              {slides.map((slide, index) => (
                 <figure
                   key={slide.src}
                   className={`${styles.slide} ${
@@ -244,6 +265,9 @@ export default function HomeBannerCarousel() {
                   }`}
                   aria-hidden={index !== activeSlide}
                 >
+                  {!loadedSlideSources.includes(slide.src) ? (
+                    <Skeleton className="absolute inset-0 h-full w-full rounded-none bg-white/10" />
+                  ) : null}
                   <Image
                     src={slide.src}
                     alt={slide.alt}
@@ -251,6 +275,8 @@ export default function HomeBannerCarousel() {
                     sizes="(max-width: 1080px) 92vw, 52vw"
                     priority={index === 0}
                     loading={index === 0 ? "eager" : "lazy"}
+                    onLoad={() => markSlideLoaded(slide.src)}
+                    className={loadedSlideSources.includes(slide.src) ? "opacity-100" : "opacity-0"}
                   />
                   <figcaption>
                     <i />
@@ -261,7 +287,7 @@ export default function HomeBannerCarousel() {
 
               <div className={styles.frameControls}>
                 <span className={styles.counter}>
-                  <b>0{activeSlide + 1}</b> / 0{SLIDES.length}
+                  <b>0{activeSlide + 1}</b> / 0{slides.length}
                 </span>
                 <div className={styles.arrows}>
                   <button
@@ -282,7 +308,7 @@ export default function HomeBannerCarousel() {
               </div>
 
               <div className={styles.dots} role="tablist">
-                {SLIDES.map((slide, index) => (
+                {slides.map((slide, index) => (
                   <button
                     key={slide.src}
                     type="button"
@@ -298,6 +324,7 @@ export default function HomeBannerCarousel() {
               <div className={styles.progress} key={activeSlide}>
                 <span />
               </div>
+
             </div>
 
             <InfoChip
@@ -324,7 +351,7 @@ export default function HomeBannerCarousel() {
             </div>
 
             <div className={styles.thumbnails}>
-              {SLIDES.map((slide, index) => (
+              {slides.map((slide, index) => (
                 <button
                   key={slide.src}
                   type="button"
@@ -332,7 +359,17 @@ export default function HomeBannerCarousel() {
                   onClick={() => showSlide(index)}
                   aria-label={`Show banner ${index + 1}`}
                 >
-                  <Image src={slide.src} alt="" fill sizes="180px" />
+                  {!loadedSlideSources.includes(slide.src) ? (
+                    <Skeleton className="absolute inset-0 h-full w-full rounded-none bg-white/10" />
+                  ) : null}
+                  <Image
+                    src={slide.src}
+                    alt=""
+                    fill
+                    sizes="180px"
+                    onLoad={() => markSlideLoaded(slide.src)}
+                    className={loadedSlideSources.includes(slide.src) ? "opacity-100" : "opacity-0"}
+                  />
                 </button>
               ))}
             </div>

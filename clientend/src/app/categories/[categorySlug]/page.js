@@ -3,13 +3,9 @@ import { redirect } from "next/navigation";
 import CategoryPageContent from "@/components/category/CategoryPageContent";
 import { getCategoryNavbarView } from "@/lib/categoryApi";
 import { getProductsFromApi } from "@/lib/productApi";
+import { fetchBanners } from "@/lib/bannerApi";
 
-export async function generateStaticParams() {
-  const categories = await getCategoryNavbarView();
-  return categories.map((category) => ({
-    categorySlug: category.slug,
-  }));
-}
+export const dynamic = "force-dynamic";
 
 export default async function CategoryPage({ params }) {
   const { categorySlug } = await params;
@@ -20,7 +16,10 @@ export default async function CategoryPage({ params }) {
     redirect("/");
   }
 
-  const products = await getProductsFromApi({ category: category.slug });
+  const [products, promoBanners] = await Promise.all([
+    getProductsFromApi({ category: category.slug }),
+    fetchBanners("promo-banner", { targetPage: `category:${category.slug}` }),
+  ]);
 
-  return <CategoryPageContent category={category} categories={categories} products={products} />;
+  return <CategoryPageContent category={category} categories={categories} products={products} promoBanners={promoBanners} />;
 }

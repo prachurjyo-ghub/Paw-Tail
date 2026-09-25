@@ -1,27 +1,12 @@
-import { getApiBaseUrl } from "@/lib/apiBaseUrl";
+import { API_BASE_URL, API_ORIGIN } from "@/lib/apiBaseUrl";
+import { resolveMediaUrl } from "@/lib/media";
 
 const FETCH_TIMEOUT_MS = 8000;
 
-const resolveApiBaseUrl = () => {
-  if (typeof window !== "undefined") {
-    return getApiBaseUrl();
-  }
+export const getAssetOrigin = () => API_ORIGIN;
 
-  return (
-    process.env.NEXT_PUBLIC_API_URL?.trim() || "http://localhost:3000/api/v1"
-  ).replace(/\/+$/, "");
-};
-
-export const getAssetOrigin = () =>
-  resolveApiBaseUrl().replace(/\/api\/v1\/?$/, "");
-
-export const getBannerImageUrl = (imageUrl) => {
-  if (!imageUrl) return "";
-  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
-    return imageUrl;
-  }
-  return `${getAssetOrigin()}${imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`}`;
-};
+export const getBannerImageUrl = (imageUrl) =>
+  resolveMediaUrl(imageUrl, { legacyFolder: "banners", width: 1920 });
 
 export const mapBannerToSlide = (banner) => {
   if (!banner?.imageUrl) {
@@ -66,16 +51,22 @@ async function fetchWithTimeout(url) {
   }
 }
 
-export async function fetchBanners(type) {
+export async function fetchBanners(type, { targetPage, homepageOnly = false } = {}) {
   try {
     const params = new URLSearchParams();
     if (type) {
       params.set("type", type);
     }
+    if (targetPage) {
+      params.set("targetPage", targetPage);
+    }
+    if (homepageOnly) {
+      params.set("homepageOnly", "true");
+    }
 
     const query = params.toString();
     const response = await fetchWithTimeout(
-      `${resolveApiBaseUrl()}/banners/get-banners${query ? `?${query}` : ""}`
+      `${API_BASE_URL}/banners/get-banners${query ? `?${query}` : ""}`
     );
     const data = await response.json();
 

@@ -1,37 +1,17 @@
 const bcrypt = require("bcryptjs");
-const fs = require("fs/promises");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
-const path = require("path");
 
+const env = require("../../config/env");
 const createMailTransporter = require("../../config/mail");
 const Order = require("../../models/Order");
 const User = require("../../models/User");
+const { mediaService } = require("../../services/mediaService");
+const { cleanupOldMedia } = require("../../utils/media");
 
 // Utility functions
 const generateVerificationCode = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
-};
-
-const removeUploadedUserImage = async (profilePic) => {
-  if (!profilePic || !profilePic.startsWith("/uploads/users/")) {
-    return;
-  }
-
-  const usersUploadDir = path.resolve(process.cwd(), "uploads", "users");
-  const imagePath = path.resolve(process.cwd(), profilePic.replace(/^\/+/, ""));
-
-  if (!imagePath.startsWith(`${usersUploadDir}${path.sep}`)) {
-    return;
-  }
-
-  try {
-    await fs.unlink(imagePath);
-  } catch (error) {
-    if (error.code !== "ENOENT") {
-      throw error;
-    }
-  }
 };
 
 const parseDurationToMs = (duration, fallbackMs) => {
@@ -58,41 +38,41 @@ const parseDurationToMs = (duration, fallbackMs) => {
 };
 
 const ACCESS_TOKEN_MAX_AGE_MS = parseDurationToMs(
-  process.env.ACCESS_TOKEN_EXPIRES_IN,
+  env.accessTokenExpiresIn,
   60 * 60 * 1000
 );
 const REFRESH_TOKEN_MAX_AGE_MS = parseDurationToMs(
-  process.env.REFRESH_TOKEN_EXPIRES_IN,
+  env.refreshTokenExpiresIn,
   60 * 60 * 1000
 );
 
 // Token generation functions
 const createAccessToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.ACCESS_TOKEN_SECRET, {
-    expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || "1h",
+  return jwt.sign({ id: userId }, env.accessTokenSecret, {
+    expiresIn: env.accessTokenExpiresIn,
   });
 };
 
 // Refresh token generation function
 const createRefreshToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.REFRESH_TOKEN_SECRET, {
-    expiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || "1h",
+  return jwt.sign({ id: userId }, env.refreshTokenSecret, {
+    expiresIn: env.refreshTokenExpiresIn,
   });
 };
 
 // Cookie options function
 const cookieOptions = (maxAge) => ({
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  secure: env.isProduction,
+  sameSite: env.isProduction ? "none" : "lax",
   maxAge,
   path: "/",
 });
 
 const clearCookieOptions = () => ({
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  secure: env.isProduction,
+  sameSite: env.isProduction ? "none" : "lax",
   path: "/",
 });
 
@@ -102,7 +82,7 @@ const sendVerificationEmail = async (email, code) => {
   const transporter = createMailTransporter();
 
   await transporter.sendMail({
-    from: process.env.MAIL_FROM,
+    from: env.mailFrom,
     to: email,
     subject: "Verify your email",
     text: `Your verification code is ${code}. This code will expire in 10 minutes.`,
@@ -114,7 +94,7 @@ const sendPasswordResetEmail = async (email, code) => {
   const transporter = createMailTransporter();
 
   await transporter.sendMail({
-    from: process.env.MAIL_FROM,
+    from: env.mailFrom,
     to: email,
     subject: "Reset your password",
     text: `Your password reset code is ${code}. This code will expire in 10 minutes.`,
@@ -126,7 +106,7 @@ const sendAccountUpdateEmail = async (email, code) => {
   const transporter = createMailTransporter();
 
   await transporter.sendMail({
-    from: process.env.MAIL_FROM,
+    from: env.mailFrom,
     to: email,
     subject: "Confirm your account update",
     text: `Your account update code is ${code}. This code will expire in 10 minutes.`,
@@ -711,6 +691,9 @@ const changePassword = async (req, res, next) => {
 };
 
 const uploadProfileImage = async (req, res, next) => {
+  let newImage = null;
+  let databaseSaved = false;
+
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -721,11 +704,20 @@ const uploadProfileImage = async (req, res, next) => {
 
     const user = req.user;
     const previousProfilePic = user.profilePic;
-    const nextProfilePic = `/uploads/users/${req.file.filename}`;
+    newImage = await mediaService.uploadImage(req.file, "users");
 
-    user.profilePic = nextProfilePic;
+    user.profilePic = newImage;
     await user.save();
-    await removeUploadedUserImage(previousProfilePic);
+    databaseSaved = true;
+
+    if (previousProfilePic) {
+      await cleanupOldMedia([previousProfilePic], {
+        legacyFolder: "users",
+        requestId: req.requestId,
+        resource: "users",
+        entityId: user._id,
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -733,6 +725,14 @@ const uploadProfileImage = async (req, res, next) => {
       profilePic: user.profilePic,
     });
   } catch (error) {
+    if (newImage && !databaseSaved) {
+      await mediaService
+        .destroyMedia(newImage, {
+          requestId: req.requestId,
+          resource: "users",
+        })
+        .catch(() => undefined);
+    }
     next(error);
   }
 };
@@ -969,7 +969,17 @@ const deleteAccount = async (req, res, next) => {
       });
     }
 
+    const profilePic = user.profilePic;
     await User.deleteOne({ _id: user._id });
+
+    if (profilePic) {
+      await cleanupOldMedia([profilePic], {
+        legacyFolder: "users",
+        requestId: req.requestId,
+        resource: "users",
+        entityId: user._id,
+      });
+    }
 
     res.clearCookie("accessToken", clearCookieOptions());
     res.clearCookie("refreshToken", clearCookieOptions());
@@ -1023,7 +1033,7 @@ const refreshToken = async (req, res, next) => {
     let decoded;
 
     try {
-      decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
+      decoded = jwt.verify(token, env.refreshTokenSecret);
     } catch {
       return res.status(401).json({
         success: false,

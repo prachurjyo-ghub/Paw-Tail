@@ -18,6 +18,7 @@ import {
   HiOutlineShoppingBag,
   HiOutlineShoppingCart,
   HiOutlineSquares2X2,
+  HiOutlineChatBubbleLeftRight,
   HiOutlineTrash,
   HiOutlineUser,
 } from "react-icons/hi2";
@@ -32,23 +33,27 @@ import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL, apiRequest } from "@/lib/api";
 import { getProductImageUrl } from "@/lib/productApi";
 import { getMyOrdersFromApi } from "@/lib/orderApi";
+import { getMyInquiries } from "@/lib/inquiryApi";
+import { resolveMediaUrl } from "@/lib/media";
 import {
   formatBDT,
   getInitials,
   statusStyles,
 } from "@/lib/profileUtils";
 
-const getImageUrl = (src) => {
-  if (!src) return null;
-  if (src.startsWith("http")) return src;
-  return `${API_BASE_URL.replace("/api/v1", "")}${src}`;
-};
+const getImageUrl = (src) =>
+  resolveMediaUrl(src, {
+    legacyFolder: "users",
+    width: 240,
+    crop: "fill",
+  }) || null;
 
 const sections = [
   { id: "overview", label: "Overview", icon: HiOutlineSquares2X2 },
   { id: "personal", label: "Personal Info", icon: HiOutlineUser },
   { id: "addresses", label: "Addresses", icon: HiOutlineMapPin },
   { id: "orders", label: "My Orders", icon: HiOutlineShoppingBag },
+  { id: "inquiries", label: "Inquiries", icon: HiOutlineChatBubbleLeftRight },
   { id: "wishlist", label: "Wishlist", icon: HiOutlineHeart },
   { id: "settings", label: "Settings", icon: HiOutlineCog6Tooth },
 ];
@@ -68,6 +73,8 @@ export default function ProfilePage() {
     initialTab && validTabs.has(initialTab) ? initialTab : "overview"
   );
   const [orders, setOrders] = useState([]);
+  const [inquiries, setInquiries] = useState([]);
+  const [inquiriesLoading, setInquiriesLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [pageMessage, setPageMessage] = useState("");
 
@@ -94,10 +101,28 @@ export default function ProfilePage() {
     }
   }, [user]);
 
+  const refreshInquiries = useCallback(async () => {
+    if (!user) return;
+    setInquiriesLoading(true);
+    try {
+      const next = await getMyInquiries();
+      setInquiries(next);
+    } catch {
+      setInquiries([]);
+    } finally {
+      setInquiriesLoading(false);
+    }
+  }, [user]);
+
   useEffect(() => {
     if (active !== "orders" && active !== "overview") return;
-    refreshProfileData();
+    queueMicrotask(refreshProfileData);
   }, [active, refreshProfileData]);
+
+  useEffect(() => {
+    if (active !== "inquiries") return;
+    queueMicrotask(refreshInquiries);
+  }, [active, refreshInquiries]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -163,10 +188,18 @@ export default function ProfilePage() {
             )}
             {active === "orders" && (
               <Orders
+                key={`orders-${initialOrderId}`}
                 orders={orders}
                 isLoading={dataLoading}
                 onRefresh={refreshProfileData}
                 initialOrderId={initialOrderId}
+              />
+            )}
+            {active === "inquiries" && (
+              <Inquiries
+                inquiries={inquiries}
+                isLoading={inquiriesLoading}
+                onRefresh={refreshInquiries}
               />
             )}
             {active === "wishlist" && (
@@ -249,6 +282,7 @@ function ProfileHeader({ user, onEdit }) {
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
         <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
           {user.profilePic ? (
+            /* eslint-disable-next-line @next/next/no-img-element -- Runtime API-hosted uploads remain raw until the Phase 2 media migration. */
             <img
               src={getImageUrl(user.profilePic)}
               alt={user.fullName}
@@ -431,9 +465,9 @@ function Overview({ user, orders, wishlist, isLoading, onNavigate }) {
         </div>
         <div className="mt-3 flex flex-col gap-3">
           {isLoading ? (
-            <p className="rounded-2xl border border-dashed border-neutral-200 p-6 text-center text-sm text-neutral-500">
-              Loading recent orders...
-            </p>
+            Array.from({ length: 3 }, (_, index) => (
+              <Skeleton key={index} className="h-20 w-full rounded-2xl" />
+            ))
           ) : recent.length ? (
             recent.map((order) => <OrderRow key={order.id} order={order} compact />)
           ) : (
@@ -651,6 +685,7 @@ function PersonalInfo({ user, onUserUpdated, onMessage }) {
 
       <div className="flex flex-col items-start gap-5 rounded-2xl bg-mainSoft/40 p-5 sm:flex-row sm:items-center">
         {user.profilePic ? (
+          /* eslint-disable-next-line @next/next/no-img-element -- Runtime API-hosted uploads remain raw until the Phase 2 media migration. */
           <img
             src={getImageUrl(user.profilePic)}
             alt={user.fullName}
@@ -1095,11 +1130,6 @@ function Orders({ orders, isLoading, onRefresh, initialOrderId = "" }) {
     [orders, selectedOrderId]
   );
 
-  useEffect(() => {
-    if (!initialOrderId) return;
-    setSelectedOrderId(initialOrderId);
-  }, [initialOrderId]);
-
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -1160,9 +1190,9 @@ function Orders({ orders, isLoading, onRefresh, initialOrderId = "" }) {
 
       <div className="flex flex-col gap-3">
         {isLoading ? (
-          <p className="rounded-2xl border border-dashed border-neutral-200 p-8 text-center text-sm text-neutral-500">
-            Loading your orders...
-          </p>
+          Array.from({ length: 4 }, (_, index) => (
+            <Skeleton key={index} className="h-24 w-full rounded-2xl" />
+          ))
         ) : filtered.length ? (
           filtered.map((order) => (
             <OrderRow
@@ -1339,6 +1369,107 @@ function SummaryLine({ label, value, strong = false, tone = "default" }) {
   );
 }
 
+function Inquiries({ inquiries, isLoading, onRefresh }) {
+  const formatDate = (value) => {
+    if (!value) return "";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "";
+    return parsed.toLocaleDateString("en-BD", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  return (
+    <section>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-black text-neutral-950">Inquiries</h2>
+          <p className="mt-1 text-sm text-neutral-500">
+            Track messages you sent from Contact and replies from PawTail care.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onRefresh}
+          className="rounded-full border border-main px-4 py-2 text-sm font-bold text-main transition hover:bg-main hover:text-white"
+        >
+          Refresh
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="mt-6 space-y-3">
+          <Skeleton className="h-28 w-full rounded-2xl" />
+          <Skeleton className="h-28 w-full rounded-2xl" />
+        </div>
+      ) : inquiries.length ? (
+        <div className="mt-6 space-y-4">
+          {inquiries.map((inquiry) => (
+            <article
+              key={inquiry._id}
+              className="rounded-2xl border border-neutral-200 p-4 sm:p-5"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-neutral-950">
+                    {inquiry.topic}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-neutral-400">
+                    {inquiry.pet} · {formatDate(inquiry.createdAt)}
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${
+                    inquiry.status === "contacted"
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-amber-50 text-amber-700"
+                  }`}
+                >
+                  {inquiry.status === "contacted"
+                    ? "Contacted"
+                    : "Need to contact"}
+                </span>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-neutral-600">
+                {inquiry.message}
+              </p>
+              {inquiry.adminReply ? (
+                <div className="mt-4 rounded-xl bg-mainSoft/50 p-3 text-sm text-main">
+                  <p className="font-black">PawTail reply</p>
+                  <p className="mt-1 leading-6">{inquiry.adminReply}</p>
+                  {inquiry.repliedAt ? (
+                    <p className="mt-2 text-xs font-semibold text-main/70">
+                      {formatDate(inquiry.repliedAt)}
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm font-semibold text-neutral-400">
+                  No reply yet — our care team will get back to you soon.
+                </p>
+              )}
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-6 rounded-2xl border border-dashed border-neutral-200 px-5 py-10 text-center">
+          <p className="text-sm font-semibold text-neutral-500">
+            You have not sent any inquiries yet.
+          </p>
+          <a
+            href="/contact#message"
+            className="mt-4 inline-flex rounded-full bg-main px-5 py-2.5 text-sm font-black text-white transition hover:bg-main/90"
+          >
+            Contact PawTail
+          </a>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function Wishlist({ items, isLoading, onRemove }) {
   const [removingId, setRemovingId] = useState("");
 
@@ -1360,9 +1491,9 @@ function Wishlist({ items, isLoading, onRemove }) {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
         {isLoading ? (
-          <p className="rounded-2xl border border-dashed border-neutral-200 p-8 text-center text-sm text-neutral-500 sm:col-span-2">
-            Loading wishlist...
-          </p>
+          Array.from({ length: 4 }, (_, index) => (
+            <Skeleton key={index} className="h-32 w-full rounded-2xl" />
+          ))
         ) : items.length ? (
           items.map((item) => (
           <div
@@ -1371,6 +1502,7 @@ function Wishlist({ items, isLoading, onRemove }) {
           >
             <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-mainSoft">
               {item.image ? (
+                /* eslint-disable-next-line @next/next/no-img-element -- Runtime API-hosted uploads remain raw until the Phase 2 media migration. */
                 <img
                   src={getProductImageUrl(item.image) || undefined}
                   alt={item.name}

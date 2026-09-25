@@ -69,7 +69,7 @@ export default function OrderDetailsDashboard() {
     };
 
     loadOrder();
-  }, [orderId]);
+  }, [orderId, showToast]);
 
   async function handleOrderStatusChange(nextStatus) {
     if (!order) return;

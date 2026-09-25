@@ -2,13 +2,11 @@ import { notFound } from "next/navigation";
 
 import Container from "@/components/Container";
 import ProductDetails from "@/components/ProductDetails";
-
-const apiBaseUrl =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
+import { API_BASE_URL } from "@/lib/apiBaseUrl";
 
 async function getProduct(slug) {
   const response = await fetch(
-    `${apiBaseUrl}/products/get-product/${encodeURIComponent(slug)}`,
+    `${API_BASE_URL}/products/get-product/${encodeURIComponent(slug)}`,
     {
       cache: "no-store",
     }

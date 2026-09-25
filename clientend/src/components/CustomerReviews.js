@@ -67,7 +67,7 @@ export default function CustomerReviews() {
                   ))}
                 </div>
                 <p className="text-[13px] sm:text-[14px] font-semibold leading-relaxed text-[#173f31] italic">
-                  "{text}"
+                  &ldquo;{text}&rdquo;
                 </p>
               </div>
               

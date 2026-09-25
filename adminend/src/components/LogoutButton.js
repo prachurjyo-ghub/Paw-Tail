@@ -9,7 +9,12 @@ import { useAdminAuth } from "@/components/AuthGate";
 import { logoutAdmin } from "@/lib/adminApi";
 import { clearAdminSession } from "@/lib/adminSession";
 
-export default function LogoutButton({ variant = "default" }) {
+export default function LogoutButton({
+  variant = "default",
+  className = "",
+  icon = null,
+  showLabel = true,
+}) {
   const router = useRouter();
   const { showToast } = useToast();
   const { setAdmin } = useAdminAuth();
@@ -47,13 +52,27 @@ export default function LogoutButton({ variant = "default" }) {
         disabled={loading}
         aria-label="Logout"
         title="Logout"
-        className="flex w-12 items-center justify-center border-l border-neutral-200 transition-colors duration-300 hover:bg-red-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex h-8 w-8 items-center justify-center rounded-[7px] border border-[#e4ece7] bg-white text-[#3d554b] transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? (
           <span className="text-xs font-bold">...</span>
         ) : (
           <HiOutlineArrowRightOnRectangle className="text-lg" />
         )}
+      </button>
+    );
+  }
+
+  if (variant === "nav") {
+    return (
+      <button
+        type="button"
+        onClick={handleLogout}
+        disabled={loading}
+        className={`${className} disabled:cursor-not-allowed disabled:opacity-60`}
+      >
+        {icon || <HiOutlineArrowRightOnRectangle className="h-5 w-5" />}
+        {showLabel ? <span>{loading ? "Logging out..." : "Logout"}</span> : null}
       </button>
     );
   }

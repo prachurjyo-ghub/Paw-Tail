@@ -1,5 +1,7 @@
+const logger = require("../utils/logger");
+
 const notFound = (req, res, next) => {
-  const error = new Error(`Route not found: ${req.originalUrl}`);
+  const error = new Error(`Route not found: ${req.path}`);
   error.statusCode = 404;
   next(error);
 };
@@ -30,19 +32,53 @@ const errorHandler = (error, req, res, next) => {
     message = "Image is too large. Please upload an image under the size limit.";
   }
 
-  if (error.message === "Only image files are allowed") {
+  if (
+    [
+      "LIMIT_FILE_COUNT",
+      "LIMIT_PART_COUNT",
+      "LIMIT_FIELD_COUNT",
+      "LIMIT_FIELD_KEY",
+      "LIMIT_FIELD_VALUE",
+      "LIMIT_UNEXPECTED_FILE",
+    ].includes(error.code)
+  ) {
+    statusCode = 400;
+    message = "Too many multipart fields or files were submitted.";
+  }
+
+  if (
+    [
+      "INVALID_IMAGE_TYPE",
+      "INVALID_IMAGE_CONTENT",
+      "UNSUPPORTED_IMAGE_FORMAT",
+    ].includes(error.code)
+  ) {
     statusCode = 400;
     message = error.message;
   }
 
   if (statusCode === 500) {
+    logger.error("http.internal_error", {
+      requestId: req.requestId,
+      method: req.method,
+      path: req.path,
+      route: req.route?.path,
+      message: error.message || "Internal server error",
+      stack: error.stack,
+    });
     message = "Internal server error";
   }
 
-  res.status(statusCode).json({
+  const response = {
     success: false,
     message,
-  });
+  };
+
+  if (statusCode === 500 && req.requestId) {
+    response.requestId = req.requestId;
+  }
+
+  res.status(statusCode).json(response);
 };
 
 module.exports = {

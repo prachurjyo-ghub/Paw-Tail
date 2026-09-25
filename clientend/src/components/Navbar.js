@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import Container from "@/components/Container";
 import CategoryIcon from "@/components/CategoryIcon";
@@ -17,8 +17,12 @@ const navLinks = [
   { label: "Contact", href: "/contact" },
 ];
 
-function NavDropdown({ label, children }) {
+const ITEMS_PER_COLUMN = 10;
+const COLUMN_WIDTH_REM = 14;
+
+function NavDropdown({ label, itemCount = 0, children }) {
   const [isOpen, setIsOpen] = useState(false);
+  const columnCount = Math.max(1, Math.ceil(itemCount / ITEMS_PER_COLUMN));
 
   return (
     <div 
@@ -32,12 +36,22 @@ function NavDropdown({ label, children }) {
       </div>
 
       <div 
-        className={`absolute left-1/2 top-full z-50 w-56 -translate-x-1/2 pt-2 transition-all duration-300 ${
+        className={`absolute left-1/2 top-full z-50 max-w-[calc(100vw-2rem)] -translate-x-1/2 pt-2 transition-all duration-300 ${
           isOpen ? "opacity-100 visible translate-y-0" : "opacity-0 invisible -translate-y-2"
         }`}
+        style={{ width: `${columnCount * COLUMN_WIDTH_REM}rem` }}
       >
-        <div className="rounded-lg border border-white/10 bg-white p-2 text-left text-main shadow-[0_18px_55px_rgba(23,63,49,0.2)]">
-          {children}
+        <div className="overflow-x-auto rounded-lg border border-white/10 bg-white p-2 text-left text-main shadow-[0_18px_55px_rgba(23,63,49,0.2)]">
+          <div
+            className="grid"
+            style={{
+              gridAutoFlow: "column",
+              gridAutoColumns: `${COLUMN_WIDTH_REM - 1}rem`,
+              gridTemplateRows: `repeat(${ITEMS_PER_COLUMN}, minmax(0, auto))`,
+            }}
+          >
+            {children}
+          </div>
         </div>
       </div>
     </div>
@@ -45,16 +59,7 @@ function NavDropdown({ label, children }) {
 }
 
 export default function Navbar({ animals = [], categories = [], brands = [] }) {
-  const [openDropdown, setOpenDropdown] = useState(null);
   const pathname = usePathname();
-
-  const closeMenus = useCallback(() => {
-    setOpenDropdown(null);
-  }, []);
-
-  const handleToggle = (label) => {
-    setOpenDropdown((prev) => (prev === label ? null : label));
-  };
 
   const handleHomeClick = (event) => {
     if (pathname !== "/") return;
@@ -73,6 +78,7 @@ export default function Navbar({ animals = [], categories = [], brands = [] }) {
                   <NavDropdown
                     key={item.label}
                     label={item.label}
+                    itemCount={animals.length}
                   >
                     {animals.map((animal) => (
                       <Link
@@ -87,7 +93,6 @@ export default function Navbar({ animals = [], categories = [], brands = [] }) {
                               alt={animal.name}
                               width={28}
                               height={28}
-                              unoptimized
                               className="h-full w-full object-cover"
                             />
                           ) : (
@@ -106,6 +111,7 @@ export default function Navbar({ animals = [], categories = [], brands = [] }) {
                   <NavDropdown
                     key={item.label}
                     label={item.label}
+                    itemCount={categories.length}
                   >
                     {categories.map((category) => (
                       <Link
@@ -120,7 +126,6 @@ export default function Navbar({ animals = [], categories = [], brands = [] }) {
                               alt={category.name}
                               width={28}
                               height={28}
-                              unoptimized
                               className="h-full w-full object-contain"
                             />
                           ) : (
@@ -139,6 +144,7 @@ export default function Navbar({ animals = [], categories = [], brands = [] }) {
                   <NavDropdown
                     key={item.label}
                     label={item.label}
+                    itemCount={brands.length}
                   >
                     {brands.map((brand) => (
                       <Link
@@ -153,7 +159,6 @@ export default function Navbar({ animals = [], categories = [], brands = [] }) {
                               alt={brand.name}
                               width={28}
                               height={28}
-                              unoptimized
                               className="h-full w-full object-contain"
                             />
                           ) : (

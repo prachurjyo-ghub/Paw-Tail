@@ -48,7 +48,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    refreshUser();
+    queueMicrotask(refreshUser);
   }, [refreshUser]);
 
   const login = useCallback(async (email, password) => {

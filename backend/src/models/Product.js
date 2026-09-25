@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { isMediaValue } = require("./media");
 
 const slugify = (value = "") =>
   value
@@ -64,12 +65,15 @@ const productSchema = new mongoose.Schema(
       trim: true,
       maxlength: 5000,
     },
-    images: [
-      {
-        type: String,
-        trim: true,
+    images: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+      validate: {
+        validator: (images) => images.every(isMediaValue),
+        message:
+          "Each product image must be a legacy path or valid Cloudinary metadata",
       },
-    ],
+    },
     category: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
@@ -192,8 +196,7 @@ productSchema.pre("save", function (next) {
       (total, variant) => total + Number(variant.stockQuantity || 0),
       0
     );
-    this.stockQuantity = totalVariantStock;
-    this.isOutOfStock = totalVariantStock <= 0;
+    this.isOutOfStock = Number(this.stockQuantity || 0) + totalVariantStock <= 0;
   } else if (typeof this.stockQuantity === "number") {
     this.isOutOfStock = this.stockQuantity <= 0;
   }

@@ -1,13 +1,20 @@
+"use client";
+
+import { useState } from "react";
 import Container from "@/components/Container";
 import Image from "next/image";
 import BrandSidebar from "@/components/brand/BrandSidebar";
 import ProductCard from "@/components/category/ProductCard";
+import { useCatalogFilters } from "@/lib/useCatalogFilters";
 
 export default function BrandPageContent({
   brand,
   brands,
   products = [],
 }) {
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const filters = useCatalogFilters(products);
+
   return (
     <main className="bg-[#f6f1e8] min-h-screen pb-[72px] pt-7">
       <Container>
@@ -63,7 +70,6 @@ export default function BrandPageContent({
                   alt={brand.name}
                   fill
                   sizes="220px"
-                  unoptimized
                   className="object-contain mix-blend-screen opacity-90"
                 />
               </div>
@@ -77,20 +83,30 @@ export default function BrandPageContent({
           </div>
         </header>
 
-        {/* Shop Layout */}
+        <button type="button" onClick={() => setShowMobileFilters((current) => !current)}
+          aria-expanded={showMobileFilters}
+          className="mb-3 flex h-11 w-full items-center justify-center rounded-xl bg-white font-bold text-[#173f31] lg:hidden">
+          {showMobileFilters ? "Hide filters" : "Filters"}
+        </button>
+
         <div className="grid items-start gap-[22px] lg:grid-cols-[250px_1fr]">
-          <BrandSidebar brands={brands} activeBrand={brand} />
+          <BrandSidebar brands={brands} activeBrand={brand}
+            className={showMobileFilters ? "flex" : "hidden lg:flex"}
+            priceCeiling={filters.priceCeiling} maxPrice={filters.effectiveMaxPrice}
+            inStockOnly={filters.inStockOnly} hasActiveFilters={filters.hasActiveFilters}
+            onMaxPriceChange={filters.updateMaxPrice} onInStockChange={filters.setInStockOnly}
+            onClear={filters.clearFilters} />
 
           <section>
             <div className="mb-[18px] flex items-center justify-between rounded-[18px] bg-white p-[10px_14px]">
               <p className="text-[13.5px] font-bold text-[#173f31]">
-                {products.length}{" "}
+                {filters.filteredProducts.length}{" "}
                 <span className="font-semibold text-[#5d6b65]">results</span>
               </p>
               
               <div className="flex items-center gap-2">
                 <span className="text-[12.5px] font-bold text-[#5d6b65]">Sort by:</span>
-                <select className="cursor-pointer appearance-none rounded-full border-0 bg-[#f4f8f5] px-3 py-1.5 text-[12.5px] font-extrabold text-[#173f31] outline-none">
+                <select value={filters.sort} onChange={(event) => filters.setSort(event.target.value)} className="cursor-pointer appearance-none rounded-full border-0 bg-[#f4f8f5] px-3 py-1.5 text-[12.5px] font-extrabold text-[#173f31] outline-none">
                   <option value="recommended">Recommended</option>
                   <option value="newest">Newest first</option>
                   <option value="price-asc">Price: Low to High</option>
@@ -99,9 +115,9 @@ export default function BrandPageContent({
               </div>
             </div>
 
-            {products.length > 0 ? (
+            {filters.filteredProducts.length > 0 ? (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 xl:gap-5">
-                {products.map((product) => (
+                {filters.filteredProducts.map((product) => (
                   <ProductCard key={product._id || product.slug} product={product} />
                 ))}
               </div>
@@ -112,7 +128,7 @@ export default function BrandPageContent({
                   No Products Found
                 </h3>
                 <p className="max-w-md text-[14px] font-medium text-[#5d6b65]">
-                  There are no products available from {brand.name}.
+                  No products from {brand.name} match the selected filters.
                 </p>
               </div>
             )}

@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { mediaField } = require("./media");
 
 const slugify = (value = "") =>
   value
@@ -30,10 +31,7 @@ const brandSchema = new mongoose.Schema(
         trim: true,
       },
     ],
-    image: {
-      type: String,
-      default: null,
-    },
+    image: mediaField(),
     isActive: {
       type: Boolean,
       default: true,

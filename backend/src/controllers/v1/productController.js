@@ -4,7 +4,15 @@ const Product = require("../../models/Product");
 const Category = require("../../models/Category");
 const Animal = require("../../models/Animal");
 const Brand = require("../../models/Brand");
-const { deleteImageFile } = require("../../utils/imageFiles");
+const {
+  mediaService,
+  persistUploadedMedia,
+} = require("../../services/mediaService");
+const {
+  cleanupOldMedia,
+  isSameMedia,
+  selectOwnedMedia,
+} = require("../../utils/media");
 
 const parseBoolean = (value) => {
   if (typeof value === "boolean") return value;
@@ -30,22 +38,6 @@ const normalizeStringArray = (value) => {
   }
 
   return [];
-};
-
-const getUploadedProductImagePaths = (req) =>
-  (req.files || []).map((file) => `/uploads/products/${file.filename}`);
-
-const cleanupUploadedFiles = (req) => {
-  getUploadedProductImagePaths(req).forEach((imagePath) => {
-    deleteImageFile(imagePath, "products");
-  });
-};
-
-const mergeProductImages = (req, imagesValue, existingImagesValue) => {
-  const uploaded = getUploadedProductImagePaths(req);
-  const fromBody = normalizeStringArray(imagesValue);
-  const existing = normalizeStringArray(existingImagesValue);
-  return [...new Set([...existing, ...uploaded, ...fromBody])];
 };
 
 const normalizeVariants = (value) => {
@@ -242,7 +234,7 @@ const getProducts = async (req, res, next) => {
     const sanitizedLimit = Math.min(100, Math.max(1, Number(limit) || 10));
     const skip = (sanitizedPage - 1) * sanitizedLimit;
 
-    const [products, totalProducts] = await Promise.all([
+    const [rawProducts, totalProducts] = await Promise.all([
       Product.find(query)
         .populate("category", "name slug")
         .populate("animal", "name slug")
@@ -252,6 +244,9 @@ const getProducts = async (req, res, next) => {
         .limit(sanitizedLimit),
       Product.countDocuments(query),
     ]);
+
+    const { attachRatingsToProducts } = require("../../utils/reviewRatings");
+    const products = await attachRatingsToProducts(rawProducts);
 
     return res.status(200).json({
       success: true,
@@ -348,7 +343,7 @@ const getSingleProduct = async (req, res, next) => {
       });
     }
 
-    const relatedProducts = await Product.find({
+    const relatedProductsRaw = await Product.find({
       _id: { $ne: product._id },
       category: product.category?._id || product.category,
       isDeleted: false,
@@ -358,10 +353,20 @@ const getSingleProduct = async (req, res, next) => {
       .sort({ createdAt: -1 })
       .limit(4);
 
+    const { attachRatingsToProducts, getProductRating } = require("../../utils/reviewRatings");
+    const rating = await getProductRating(product._id);
+    const relatedProducts = await attachRatingsToProducts(relatedProductsRaw);
+    const productWithRating = {
+      ...(product.toObject ? product.toObject() : product),
+      averageRating: rating.averageRating,
+      reviewCount: rating.reviewCount,
+      isBaselineRating: rating.isBaseline,
+    };
+
     return res.status(200).json({
       success: true,
       message: "Product fetched successfully",
-      product,
+      product: productWithRating,
       relatedProducts,
     });
   } catch (error) {
@@ -370,6 +375,9 @@ const getSingleProduct = async (req, res, next) => {
 };
 
 const createProduct = async (req, res, next) => {
+  let uploadedImages = [];
+  let databaseSaved = false;
+
   try {
     const {
       name,
@@ -384,13 +392,10 @@ const createProduct = async (req, res, next) => {
       isFeatured,
       isOfferEnabled,
       tags,
-      images,
-      existingImages,
       variants,
     } = req.body;
 
     if (!name || !description || !category || !brand || price === undefined) {
-      cleanupUploadedFiles(req);
       return res.status(400).json({
         success: false,
         message: "Name, description, category, brand, and price are required",
@@ -398,7 +403,6 @@ const createProduct = async (req, res, next) => {
     }
 
     if (stockQuantity === undefined || Number(stockQuantity) < 0) {
-      cleanupUploadedFiles(req);
       return res.status(400).json({
         success: false,
         message: "A valid stockQuantity is required",
@@ -407,7 +411,6 @@ const createProduct = async (req, res, next) => {
 
     const resolvedCategory = await resolveCategoryRef(category);
     if (!resolvedCategory) {
-      cleanupUploadedFiles(req);
       return res.status(400).json({
         success: false,
         message: "Valid category (id, slug, or name) is required",
@@ -418,7 +421,6 @@ const createProduct = async (req, res, next) => {
 
     const resolvedBrand = await resolveBrandRef(brand);
     if (!resolvedBrand) {
-      cleanupUploadedFiles(req);
       return res.status(400).json({
         success: false,
         message: "Valid brand (id, slug, or name) is required",
@@ -431,7 +433,6 @@ const createProduct = async (req, res, next) => {
     });
 
     if (existingProductByName) {
-      cleanupUploadedFiles(req);
       return res.status(400).json({
         success: false,
         message: "Product with this name already exists",
@@ -440,7 +441,6 @@ const createProduct = async (req, res, next) => {
 
     const normalizedVariants = normalizeVariants(variants);
     if (normalizedVariants === null) {
-      cleanupUploadedFiles(req);
       return res.status(400).json({
         success: false,
         message: "variants must be a valid JSON array",
@@ -454,7 +454,6 @@ const createProduct = async (req, res, next) => {
         : Number(discountPrice);
 
     if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      cleanupUploadedFiles(req);
       return res.status(400).json({
         success: false,
         message: "Valid price is required",
@@ -467,29 +466,37 @@ const createProduct = async (req, res, next) => {
         parsedDiscountPrice < 0 ||
         parsedDiscountPrice >= parsedPrice)
     ) {
-      cleanupUploadedFiles(req);
       return res.status(400).json({
         success: false,
         message: "discountPrice must be lower than price",
       });
     }
 
-    const product = await Product.create({
-      name,
-      description,
-      category: resolvedCategory._id,
-      animal: resolvedAnimal?._id || null,
-      brand: resolvedBrand._id,
-      price: parsedPrice,
-      discountPrice: parsedDiscountPrice,
-      stockQuantity: Number(stockQuantity),
-      isActive: parseBoolean(isActive) ?? true,
-      isFeatured: parseBoolean(isFeatured) ?? false,
-      isOfferEnabled: parseBoolean(isOfferEnabled) ?? false,
-      tags: normalizeStringArray(tags),
-      images: mergeProductImages(req, images),
-      variants: normalizedVariants,
+    const creation = await persistUploadedMedia({
+      files: req.files || [],
+      resource: "products",
+      context: { requestId: req.requestId },
+      persist: (nextImages) =>
+        Product.create({
+          name,
+          description,
+          category: resolvedCategory._id,
+          animal: resolvedAnimal?._id || null,
+          brand: resolvedBrand._id,
+          price: parsedPrice,
+          discountPrice: parsedDiscountPrice,
+          stockQuantity: Number(stockQuantity),
+          isActive: parseBoolean(isActive) ?? true,
+          isFeatured: parseBoolean(isFeatured) ?? false,
+          isOfferEnabled: parseBoolean(isOfferEnabled) ?? false,
+          tags: normalizeStringArray(tags),
+          images: nextImages,
+          variants: normalizedVariants,
+        }),
     });
+    uploadedImages = creation.uploaded;
+    const product = creation.value;
+    databaseSaved = true;
 
     const populatedProduct = await Product.findById(product._id)
       .populate("category", "name slug")
@@ -501,12 +508,22 @@ const createProduct = async (req, res, next) => {
       product: populatedProduct,
     });
   } catch (error) {
-    cleanupUploadedFiles(req);
+    if (!databaseSaved) {
+      await mediaService
+        .destroyMany(uploadedImages, {
+          requestId: req.requestId,
+          resource: "products",
+        })
+        .catch(() => undefined);
+    }
     next(error);
   }
 };
 
 const updateProduct = async (req, res, next) => {
+  let uploadedImages = [];
+  let databaseSaved = false;
+
   try {
     const { slug } = req.params;
     const {
@@ -533,7 +550,6 @@ const updateProduct = async (req, res, next) => {
     });
 
     if (!product) {
-      cleanupUploadedFiles(req);
       return res.status(404).json({
         success: false,
         message: "Product not found",
@@ -659,15 +675,6 @@ const updateProduct = async (req, res, next) => {
       product.tags = normalizeStringArray(tags);
     }
 
-    if (images !== undefined || existingImages !== undefined || req.files?.length) {
-      const nextImages = mergeProductImages(req, images, existingImages);
-      const removedImages = (product.images || []).filter(
-        (imagePath) => !nextImages.includes(imagePath)
-      );
-      removedImages.forEach((imagePath) => deleteImageFile(imagePath, "products"));
-      product.images = nextImages;
-    }
-
     if (variants !== undefined) {
       const normalizedVariants = normalizeVariants(variants);
       if (normalizedVariants === null) {
@@ -679,7 +686,48 @@ const updateProduct = async (req, res, next) => {
       product.variants = normalizedVariants;
     }
 
+    let removedImages = [];
+    if (
+      images !== undefined ||
+      existingImages !== undefined ||
+      req.files?.length
+    ) {
+      const currentImages = [...(product.images || [])];
+      const requestedTokens =
+        existingImages !== undefined ? existingImages : images;
+      const retainedImages =
+        requestedTokens !== undefined
+          ? selectOwnedMedia(currentImages, requestedTokens)
+          : currentImages;
+
+      uploadedImages = await mediaService.uploadMany(
+        req.files || [],
+        "products",
+        {
+          requestId: req.requestId,
+          entityId: product._id,
+        }
+      );
+
+      const nextImages = [...retainedImages, ...uploadedImages];
+      removedImages = currentImages.filter(
+        (currentImage) =>
+          !retainedImages.some((retainedImage) =>
+            isSameMedia(currentImage, retainedImage)
+          )
+      );
+      product.images = nextImages;
+    }
+
     await product.save();
+    databaseSaved = true;
+
+    await cleanupOldMedia(removedImages, {
+      legacyFolder: "products",
+      requestId: req.requestId,
+      resource: "products",
+      entityId: product._id,
+    });
 
     const updatedProduct = await Product.findById(product._id)
       .populate("category", "name slug")
@@ -692,7 +740,14 @@ const updateProduct = async (req, res, next) => {
       product: updatedProduct,
     });
   } catch (error) {
-    cleanupUploadedFiles(req);
+    if (!databaseSaved) {
+      await mediaService
+        .destroyMany(uploadedImages, {
+          requestId: req.requestId,
+          resource: "products",
+        })
+        .catch(() => undefined);
+    }
     next(error);
   }
 };

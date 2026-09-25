@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { mediaField } = require("./media");
 
 const bannerSchema = new mongoose.Schema(
   {
@@ -21,11 +22,7 @@ const bannerSchema = new mongoose.Schema(
       required: true,
       min: 1,
     },
-    imageUrl: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+    imageUrl: mediaField({ required: true }),
     linkUrl: {
       type: String,
       trim: true,
@@ -36,6 +33,14 @@ const bannerSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    targetPages: {
+      type: [String],
+      default: [],
+    },
+    showCatalogHeader: {
+      type: Boolean,
+      default: true,
+    },
   },
   {
     timestamps: true,
@@ -43,5 +48,6 @@ const bannerSchema = new mongoose.Schema(
 );
 
 bannerSchema.index({ bannerType: 1, isActive: 1, slideNumber: 1 });
+bannerSchema.index({ bannerType: 1, isActive: 1, targetPages: 1 });
 
 module.exports = mongoose.model("Banner", bannerSchema);

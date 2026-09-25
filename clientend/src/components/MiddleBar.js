@@ -18,19 +18,13 @@ import ForgotPasswordPopover from "@/components/ForgotPasswordPopover";
 import LoginPopover from "@/components/LoginPopover";
 import { useWishlist } from "@/components/WishlistProvider";
 import { useAuth } from "@/context/AuthContext";
-import { API_BASE_URL } from "@/lib/api";
+import { resolveMediaUrl } from "@/lib/media";
 import { getInitials } from "@/lib/profileUtils";
 
 const secondaryActions = [
   { id: "wishlist", label: "Wishlist", icon: HiOutlineHeart, href: "/wishlist" },
   { id: "cart", label: "Cart", icon: HiOutlineShoppingCart, href: "/cart" },
 ];
-
-const getImageUrl = (src) => {
-  if (!src) return null;
-  if (src.startsWith("http")) return src;
-  return `${API_BASE_URL.replace("/api/v1", "")}${src}`;
-};
 
 export default function MiddleBar() {
   const { user, logout } = useAuth();
@@ -176,8 +170,13 @@ export default function MiddleBar() {
                       className="flex items-center gap-2 px-3 lg:px-4 text-xs lg:text-sm font-semibold transition-colors duration-300 hover:bg-main hover:text-white"
                     >
                       {user.profilePic ? (
+                        /* eslint-disable-next-line @next/next/no-img-element -- Runtime API-hosted uploads remain raw until the Phase 2 media migration. */
                         <img
-                          src={getImageUrl(user.profilePic)}
+                          src={resolveMediaUrl(user.profilePic, {
+                            legacyFolder: "users",
+                            width: 96,
+                            crop: "fill",
+                          })}
                           alt={user.fullName}
                           className="h-6 w-6 lg:h-7 lg:w-7 rounded-full object-cover"
                         />

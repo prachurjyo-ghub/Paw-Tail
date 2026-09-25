@@ -6,6 +6,7 @@ const {
   getDeliveryCharge,
   getDeliveryZoneSettings,
 } = require("../../services/deliveryZoneService");
+const { getMediaUrl } = require("../../models/media");
 
 const sendSuccess = (res, statusCode, message, data) => {
   return res.status(statusCode).json({
@@ -106,7 +107,7 @@ const getProductImage = (product, variant) => {
     Array.isArray(product.images) ? product.images[0] : undefined
   );
 
-  return image?.toString() || "";
+  return getMediaUrl(image) || image?.toString() || "";
 };
 
 const getProductName = (product) => {
@@ -148,10 +149,14 @@ const getPricingSnapshot = (product, variant) => {
     variant?.discountPrice,
     variant?.discountedUnitPrice,
     variant?.salePrice,
-    product.discountedPrice,
-    product.discountPrice,
-    product.discountedUnitPrice,
-    product.salePrice
+    ...(!variant
+      ? [
+          product.discountedPrice,
+          product.discountPrice,
+          product.discountedUnitPrice,
+          product.salePrice,
+        ]
+      : [])
   );
 
   return {
@@ -218,8 +223,7 @@ const syncProductStockFromVariants = (product) => {
     return total + (getFirstNumber(variant.stockQuantity, 0) || 0);
   }, 0);
 
-  product.stockQuantity = totalVariantStock;
-  product.isOutOfStock = totalVariantStock <= 0;
+  product.isOutOfStock = Number(product.stockQuantity || 0) + totalVariantStock <= 0;
 };
 
 const restoreStockForOrder = async ({ order, session }) => {
@@ -241,7 +245,7 @@ const restoreStockForOrder = async ({ order, session }) => {
       continue;
     }
 
-    if (productHasVariants(product)) {
+    if (item.variantId) {
       const variant = findVariant(product, item.variantId);
 
       if (variant) {
@@ -250,7 +254,7 @@ const restoreStockForOrder = async ({ order, session }) => {
       }
     } else {
       product.stockQuantity += item.quantity;
-      product.isOutOfStock = product.stockQuantity <= 0;
+      syncProductStockFromVariants(product);
     }
   }
 
@@ -275,11 +279,12 @@ const reduceStockForItems = async ({ productsById, items, session }) => {
     const variant = findVariant(product, item.variantId);
     const quantity = requestedQuantityMap.get(stockKey);
 
-    if (productHasVariants(product)) {
+    if (item.variantId) {
       reduceVariantStock(variant, quantity);
       syncProductStockFromVariants(product);
     } else {
       reduceProductStock(product, quantity);
+      syncProductStockFromVariants(product);
     }
 
     processedStockKeys.add(stockKey);
@@ -479,10 +484,6 @@ const createOrder = async (req, res, next) => {
 
       const hasVariants = productHasVariants(product);
 
-      if (hasVariants && !item.variantId) {
-        throw createHttpError(400, "Please select a product variant");
-      }
-
       if (!hasVariants && item.variantId) {
         throw createHttpError(400, "This product does not have variants");
       }
@@ -497,7 +498,7 @@ const createOrder = async (req, res, next) => {
         throw createHttpError(400, "Product variant is not active");
       }
 
-      const stock = hasVariants
+      const stock = variant
         ? getFirstNumber(variant.stockQuantity, variant.stock, variant.quantity)
         : getFirstNumber(product.stockQuantity, product.stock, product.quantity);
       const requestedQuantity = requestedQuantityMap.get(getStockKey(item));

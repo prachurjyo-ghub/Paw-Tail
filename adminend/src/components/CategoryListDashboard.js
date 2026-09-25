@@ -2,22 +2,16 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import CategoryIcon from "@/components/CategoryIcon";
 import DashboardShell, { Icon } from "@/components/DashboardShell";
 import { getApiBaseUrl } from "@/lib/apiBaseUrl";
+import { resolveMediaUrl } from "@/lib/media";
 import { useToast } from "@/components/ui/toast";
 
-const getAssetOrigin = (apiBaseUrl) => apiBaseUrl.replace(/\/api\/v1\/?$/, "");
-
-const resolveImageUrl = (apiBaseUrl, imagePath) => {
-  if (!imagePath) return "";
-  if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
-    return imagePath;
-  }
-  return `${getAssetOrigin(apiBaseUrl)}${imagePath.startsWith("/") ? imagePath : `/${imagePath}`}`;
-};
+const resolveImageUrl = (_apiBaseUrl, imagePath) =>
+  resolveMediaUrl(imagePath, { width: 320 });
 
 const REQUEST_TIMEOUT_MS = 12000;
 
@@ -86,7 +80,7 @@ export default function CategoryListDashboard() {
   const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [animalsRes, categoriesRes] = await Promise.all([
@@ -141,11 +135,11 @@ export default function CategoryListDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiBaseUrl, showToast]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   const filteredAnimals = useMemo(() => {
     const q = searchText.trim().toLowerCase();

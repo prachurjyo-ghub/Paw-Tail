@@ -24,16 +24,32 @@ export default function DeleteAccountPopover({ open, onClose }) {
 
   useEffect(() => {
     if (!open) return;
-    setStep("otp");
-    setOtp(["", "", "", "", "", ""]);
-    setError("");
-    setIsSubmitting(true);
-    apiRequest("/users/request-update-otp", {
-      method: "POST",
-      body: JSON.stringify({ type: "delete" }),
-    })
-      .catch((error) => setError(error.message || "Could not send OTP."))
-      .finally(() => setIsSubmitting(false));
+
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+
+      setStep("otp");
+      setOtp(["", "", "", "", "", ""]);
+      setError("");
+      setIsSubmitting(true);
+      apiRequest("/users/request-update-otp", {
+        method: "POST",
+        body: JSON.stringify({ type: "delete" }),
+      })
+        .catch((error) => {
+          if (!cancelled) {
+            setError(error.message || "Could not send OTP.");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setIsSubmitting(false);
+        });
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
 
   const handleOtpVerify = (event) => {

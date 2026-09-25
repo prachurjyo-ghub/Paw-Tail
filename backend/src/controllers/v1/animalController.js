@@ -1,7 +1,8 @@
 const mongoose = require("mongoose");
 const Animal = require("../../models/Animal");
 const Category = require("../../models/Category");
-const { deleteImageFile } = require("../../utils/imageFiles");
+const { mediaService } = require("../../services/mediaService");
+const { cleanupOldMedia } = require("../../utils/media");
 
 const createSlug = (name) => {
   return name
@@ -78,12 +79,13 @@ const getAnimals = async (req, res, next) => {
 };
 
 const postAnimal = async (req, res, next) => {
+  let newImage = null;
+  let databaseSaved = false;
+
   try {
-    const { name, icon, image } = req.body;
-    const uploadedImage = req.file ? `/uploads/animals/${req.file.filename}` : null;
+    const { name, icon } = req.body;
     const trimmedName = name?.trim();
     const trimmedIcon = String(icon || "🐾").trim();
-    const trimmedImage = typeof image === "string" ? image.trim() : "";
 
     if (!trimmedName) {
       return res.status(400).json({
@@ -96,10 +98,6 @@ const postAnimal = async (req, res, next) => {
 
     if (existingAnimal) {
       if (existingAnimal.isActive && !existingAnimal.isDeleted) {
-        if (req.file) {
-          deleteImageFile(`/uploads/animals/${req.file.filename}`, "animals");
-        }
-
         return res.status(400).json({
           success: false,
           message: "This animal already exists",
@@ -109,10 +107,24 @@ const postAnimal = async (req, res, next) => {
       existingAnimal.name = trimmedName;
       existingAnimal.slug = await createUniqueSlug(trimmedName, existingAnimal._id);
       existingAnimal.icon = trimmedIcon || "🐾";
-      existingAnimal.image = uploadedImage || trimmedImage || existingAnimal.image || null;
+      const previousImage = existingAnimal.image;
+      if (req.file) {
+        newImage = await mediaService.uploadImage(req.file, "animals");
+        existingAnimal.image = newImage;
+      }
       existingAnimal.isDeleted = false;
       existingAnimal.isActive = true;
       await existingAnimal.save();
+      databaseSaved = true;
+
+      if (newImage && previousImage) {
+        await cleanupOldMedia([previousImage], {
+          legacyFolder: "animals",
+          requestId: req.requestId,
+          resource: "animals",
+          entityId: existingAnimal._id,
+        });
+      }
 
       return res.status(200).json({
         success: true,
@@ -130,12 +142,17 @@ const postAnimal = async (req, res, next) => {
       });
     }
 
+    if (req.file) {
+      newImage = await mediaService.uploadImage(req.file, "animals");
+    }
+
     const animal = await Animal.create({
       name: trimmedName,
       slug,
       icon: trimmedIcon || "🐾",
-      image: uploadedImage || trimmedImage || null,
+      image: newImage,
     });
+    databaseSaved = true;
 
     return res.status(201).json({
       success: true,
@@ -143,21 +160,27 @@ const postAnimal = async (req, res, next) => {
       animal,
     });
   } catch (error) {
-    if (req.file) {
-      deleteImageFile(`/uploads/animals/${req.file.filename}`, "animals");
+    if (newImage && !databaseSaved) {
+      await mediaService
+        .destroyMedia(newImage, {
+          requestId: req.requestId,
+          resource: "animals",
+        })
+        .catch(() => undefined);
     }
     next(error);
   }
 };
 
 const updateAnimal = async (req, res, next) => {
+  let newImage = null;
+  let databaseSaved = false;
+
   try {
     const { id } = req.params;
     const { name, icon, image } = req.body;
-    const uploadedImage = req.file ? `/uploads/animals/${req.file.filename}` : null;
     const trimmedName = name?.trim();
     const trimmedIcon = String(icon || "").trim();
-    const trimmedImage = typeof image === "string" ? image.trim() : "";
 
     if (isInvalidAnimalId(id, res)) {
       return;
@@ -173,10 +196,6 @@ const updateAnimal = async (req, res, next) => {
     const animal = await Animal.findById(id);
 
     if (!animal) {
-      if (req.file) {
-        deleteImageFile(`/uploads/animals/${req.file.filename}`, "animals");
-      }
-
       return res.status(404).json({
         success: false,
         message: "Animal not found",
@@ -186,10 +205,6 @@ const updateAnimal = async (req, res, next) => {
     const existingAnimal = await findAnimalByName(trimmedName, animal._id);
 
     if (existingAnimal) {
-      if (req.file) {
-        deleteImageFile(`/uploads/animals/${req.file.filename}`, "animals");
-      }
-
       return res.status(400).json({
         success: false,
         message: "This animal already exists",
@@ -199,10 +214,6 @@ const updateAnimal = async (req, res, next) => {
     const slug = await createUniqueSlug(trimmedName, animal._id);
 
     if (!slug) {
-      if (req.file) {
-        deleteImageFile(`/uploads/animals/${req.file.filename}`, "animals");
-      }
-
       return res.status(400).json({
         success: false,
         message: "Animal name must contain letters or numbers",
@@ -214,16 +225,24 @@ const updateAnimal = async (req, res, next) => {
     if (trimmedIcon) {
       animal.icon = trimmedIcon;
     }
-    if (uploadedImage) {
-      const previousImage = animal.image;
-      animal.image = uploadedImage;
-      if (previousImage && previousImage !== uploadedImage) {
-        deleteImageFile(previousImage, "animals");
-      }
-    } else if (typeof image === "string") {
-      animal.image = trimmedImage || null;
+    const previousImage = animal.image;
+    if (req.file) {
+      newImage = await mediaService.uploadImage(req.file, "animals");
+      animal.image = newImage;
+    } else if (image === "") {
+      animal.image = null;
     }
     await animal.save();
+    databaseSaved = true;
+
+    if ((newImage || image === "") && previousImage) {
+      await cleanupOldMedia([previousImage], {
+        legacyFolder: "animals",
+        requestId: req.requestId,
+        resource: "animals",
+        entityId: animal._id,
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -231,8 +250,13 @@ const updateAnimal = async (req, res, next) => {
       animal,
     });
   } catch (error) {
-    if (req.file) {
-      deleteImageFile(`/uploads/animals/${req.file.filename}`, "animals");
+    if (newImage && !databaseSaved) {
+      await mediaService
+        .destroyMedia(newImage, {
+          requestId: req.requestId,
+          resource: "animals",
+        })
+        .catch(() => undefined);
     }
     next(error);
   }
@@ -268,8 +292,6 @@ const deleteAnimal = async (req, res, next) => {
         message: "Cannot delete animal while categories are assigned to it",
       });
     }
-
-    deleteImageFile(animal.image, "animals");
 
     animal.isDeleted = true;
     animal.isActive = false;

@@ -13,6 +13,9 @@ const bannerRoutes = require("./bannerRoutes.js");
 const reviewRoutes = require("./reviewRoutes.js");
 const wishlistRoutes = require("./wishlistRoutes.js");
 const deliveryRoutes = require("./deliveryRoutes.js");
+const invoiceRoutes = require("./invoiceRoutes.js");
+const promoDealRoutes = require("./promoDealRoutes.js");
+const inquiryRoutes = require("./inquiryRoutes.js");
 
 router.use("/users", userRoutes);
 router.use("/brands", brandRoutes);
@@ -26,5 +29,8 @@ router.use("/banners", bannerRoutes);
 router.use("/reviews", reviewRoutes);
 router.use("/wishlist", wishlistRoutes);
 router.use("/delivery", deliveryRoutes);
+router.use("/invoices", invoiceRoutes);
+router.use("/promo-deals", promoDealRoutes);
+router.use("/inquiries", inquiryRoutes);
 
 module.exports = router;
