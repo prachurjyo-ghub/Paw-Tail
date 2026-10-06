@@ -39,7 +39,18 @@ test("live health returns 200 and a request ID", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(body.status, "alive");
+  assert.equal(response.headers.get("cache-control"), "no-store");
   assert.match(response.headers.get("x-request-id"), /^[0-9a-f-]{36}$/);
+});
+
+test("each request receives a distinct request ID", async () => {
+  const first = await fetch(`${baseUrl}/health/live`);
+  const second = await fetch(`${baseUrl}/health/live`);
+
+  assert.notEqual(
+    first.headers.get("x-request-id"),
+    second.headers.get("x-request-id")
+  );
 });
 
 test("ready health reflects startup, Mongo, and shutdown state", async () => {

@@ -3,6 +3,11 @@ const express = require("express");
 const createHealthRouter = (state) => {
   const router = express.Router();
 
+  router.use((req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    next();
+  });
+
   router.get("/live", (req, res) => {
     res.status(200).json({
       status: "alive",

@@ -1,7 +1,8 @@
 import { apiRequest } from "@/lib/api";
 
 export async function getProductReviews(productId) {
-  const data = await apiRequest(`/reviews/get-reviews?productId=${productId}`);
+  const params = new URLSearchParams({ productId: String(productId) });
+  const data = await apiRequest(`/reviews/get-reviews?${params}`);
   return {
     reviews: data.reviews || [],
     rating: data.rating || null,

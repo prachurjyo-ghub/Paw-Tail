@@ -87,6 +87,18 @@ const validateObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
 const escapeRegex = (value = "") =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+const normalizePositiveInteger = (value, fallback, max = Infinity) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(1, Math.floor(parsed)));
+};
+
+const normalizeNonNegativeNumber = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+};
+
 const resolveCategoryRef = async (value) => {
   if (value === undefined || value === null) return null;
 
@@ -194,10 +206,13 @@ const getProducts = async (req, res, next) => {
       query.brand = matchedBrand?._id || null;
     }
 
-    if (minPrice || maxPrice) {
+    const normalizedMinPrice = normalizeNonNegativeNumber(minPrice);
+    const normalizedMaxPrice = normalizeNonNegativeNumber(maxPrice);
+
+    if (normalizedMinPrice !== null || normalizedMaxPrice !== null) {
       query.price = {};
-      if (minPrice) query.price.$gte = Number(minPrice);
-      if (maxPrice) query.price.$lte = Number(maxPrice);
+      if (normalizedMinPrice !== null) query.price.$gte = normalizedMinPrice;
+      if (normalizedMaxPrice !== null) query.price.$lte = normalizedMaxPrice;
     }
 
     const activeFilter = parseBoolean(isActive);
@@ -230,8 +245,8 @@ const getProducts = async (req, res, next) => {
       sortOption = { price: -1, createdAt: -1 };
     }
 
-    const sanitizedPage = Math.max(1, Number(page) || 1);
-    const sanitizedLimit = Math.min(100, Math.max(1, Number(limit) || 10));
+    const sanitizedPage = normalizePositiveInteger(page, 1);
+    const sanitizedLimit = normalizePositiveInteger(limit, 10, 100);
     const skip = (sanitizedPage - 1) * sanitizedLimit;
 
     const [rawProducts, totalProducts] = await Promise.all([
@@ -288,8 +303,8 @@ const getDeletedProducts = async (req, res, next) => {
       sortOption = { price: -1, deletedAt: -1 };
     }
 
-    const sanitizedPage = Math.max(1, Number(page) || 1);
-    const sanitizedLimit = Math.min(100, Math.max(1, Number(limit) || 10));
+    const sanitizedPage = normalizePositiveInteger(page, 1);
+    const sanitizedLimit = normalizePositiveInteger(limit, 10, 100);
     const skip = (sanitizedPage - 1) * sanitizedLimit;
 
     const [products, totalProducts] = await Promise.all([

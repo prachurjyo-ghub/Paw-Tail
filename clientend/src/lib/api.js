@@ -20,11 +20,13 @@ async function fetchJson(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     cache: method === "GET" ? "no-store" : undefined,
     credentials: "include",
+    ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(options.body !== undefined && !(options.body instanceof FormData)
+        ? { "Content-Type": "application/json" }
+        : {}),
       ...(options.headers || {}),
     },
-    ...options,
   });
 
   const data = await response.json().catch(() => ({}));

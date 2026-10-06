@@ -1,12 +1,22 @@
 const GUEST_CART_KEY = "pawtail-guest-cart";
 const GUEST_WISHLIST_KEY = "pawtail-wishlist";
 
+const getLocalStorage = () => {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+};
+
 export const getGuestCartLineKey = (productId, variantId) =>
   `${productId}:${variantId || "default"}`;
 
 export const readGuestCartItems = () => {
   try {
-    const stored = JSON.parse(localStorage.getItem(GUEST_CART_KEY) || "[]");
+    const storage = getLocalStorage();
+    if (!storage) return [];
+    const stored = JSON.parse(storage.getItem(GUEST_CART_KEY) || "[]");
     return Array.isArray(stored) ? stored : [];
   } catch {
     return [];
@@ -14,16 +24,20 @@ export const readGuestCartItems = () => {
 };
 
 export const writeGuestCartItems = (items) => {
-  localStorage.setItem(GUEST_CART_KEY, JSON.stringify(items));
+  const storage = getLocalStorage();
+  if (!storage) return;
+  storage.setItem(GUEST_CART_KEY, JSON.stringify(Array.isArray(items) ? items : []));
 };
 
 export const clearGuestCartItems = () => {
-  localStorage.removeItem(GUEST_CART_KEY);
+  getLocalStorage()?.removeItem(GUEST_CART_KEY);
 };
 
 export const readGuestWishlistItems = () => {
   try {
-    const stored = JSON.parse(localStorage.getItem(GUEST_WISHLIST_KEY) || "[]");
+    const storage = getLocalStorage();
+    if (!storage) return [];
+    const stored = JSON.parse(storage.getItem(GUEST_WISHLIST_KEY) || "[]");
     return Array.isArray(stored) ? stored : [];
   } catch {
     return [];
@@ -31,11 +45,16 @@ export const readGuestWishlistItems = () => {
 };
 
 export const writeGuestWishlistItems = (items) => {
-  localStorage.setItem(GUEST_WISHLIST_KEY, JSON.stringify(items));
+  const storage = getLocalStorage();
+  if (!storage) return;
+  storage.setItem(
+    GUEST_WISHLIST_KEY,
+    JSON.stringify(Array.isArray(items) ? items : [])
+  );
 };
 
 export const clearGuestWishlistItems = () => {
-  localStorage.removeItem(GUEST_WISHLIST_KEY);
+  getLocalStorage()?.removeItem(GUEST_WISHLIST_KEY);
 };
 
 export const buildGuestCartItem = (product, variant, quantity) => {

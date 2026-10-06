@@ -1,9 +1,9 @@
 const writeLog = (level, event, details = {}) => {
   const entry = {
+    ...details,
     timestamp: new Date().toISOString(),
     severity: level,
     event,
-    ...details,
   };
 
   const serialized = JSON.stringify(entry);

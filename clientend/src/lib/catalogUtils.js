@@ -6,7 +6,8 @@ export const slugifyCategory = (value = "") =>
     .replace(/&/g, "and")
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
 
 export function getAnimalGroupKeys(name = "") {
   const base = name.toString().trim().toLowerCase();

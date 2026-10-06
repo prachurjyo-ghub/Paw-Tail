@@ -19,7 +19,8 @@ export function formatBDT(amount) {
 
 export function getInitials(name) {
   return (name || "")
-    .split(" ")
+    .trim()
+    .split(/\s+/)
     .map((part) => part[0])
     .filter(Boolean)
     .slice(0, 2)

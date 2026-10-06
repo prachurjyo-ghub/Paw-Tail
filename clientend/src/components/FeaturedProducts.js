@@ -7,6 +7,18 @@ import { FeaturedProductsSkeleton } from "@/components/skeletons/StorefrontSkele
 import { apiRequest } from "@/lib/api";
 import { mapProductForListingCard } from "@/lib/productApi";
 
+const shuffleProducts = (products) => {
+  const shuffled = [...products];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [
+      shuffled[swapIndex],
+      shuffled[index],
+    ];
+  }
+  return shuffled;
+};
+
 export default function FeaturedProducts() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +39,7 @@ export default function FeaturedProducts() {
         });
 
         // Randomly shuffle the products if there are many, then take up to 10 to fit 5-column grid perfectly
-        const shuffled = mappedProducts.sort(() => 0.5 - Math.random());
+        const shuffled = shuffleProducts(mappedProducts);
         const selectedProducts = shuffled.slice(0, 10);
 
         setProducts(selectedProducts);

@@ -1,5 +1,5 @@
 const VALID_NODE_ENVS = new Set(["development", "test", "production"]);
-const DURATION_PATTERN = /^\d+(?:s|m|h|d)$/i;
+const DURATION_PATTERN = /^[1-9]\d*(?:s|m|h|d)$/i;
 
 const readString = (name, { required = false, fallback } = {}) => {
   const value = process.env[name]?.trim() || fallback;
@@ -94,6 +94,10 @@ const readUrl = (
     throw new Error(`${name} must use http or https`);
   }
 
+  if (parsed.username || parsed.password) {
+    throw new Error(`${name} must not include credentials`);
+  }
+
   if (requireHttps && parsed.protocol !== "https:") {
     throw new Error(`${name} must use https in production`);
   }
@@ -129,6 +133,10 @@ const readUrlList = (name, { requireHttps = false } = {}) => {
 
     if (!["http:", "https:"].includes(parsed.protocol)) {
       throw new Error(`${temporaryName} must use http or https`);
+    }
+
+    if (parsed.username || parsed.password) {
+      throw new Error(`${temporaryName} must not include credentials`);
     }
 
     if (requireHttps && parsed.protocol !== "https:") {

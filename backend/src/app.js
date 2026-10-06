@@ -16,6 +16,22 @@ const JSON_BODY_LIMIT = "100kb";
 const URL_ENCODED_BODY_LIMIT = "100kb";
 const URL_ENCODED_PARAMETER_LIMIT = 100;
 
+const isPrivateIpv4 = (hostname) => {
+  const octets = hostname.split(".").map(Number);
+  if (
+    octets.length !== 4 ||
+    octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)
+  ) {
+    return false;
+  }
+
+  return (
+    octets[0] === 10 ||
+    (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+    (octets[0] === 192 && octets[1] === 168)
+  );
+};
+
 const isLocalDevOrigin = (origin, isProduction) => {
   if (isProduction) {
     return false;
@@ -27,9 +43,7 @@ const isLocalDevOrigin = (origin, isProduction) => {
       parsed.hostname === "localhost" ||
       parsed.hostname === "127.0.0.1" ||
       parsed.hostname === "0.0.0.0" ||
-      parsed.hostname.startsWith("192.168.") ||
-      parsed.hostname.startsWith("10.") ||
-      parsed.hostname.startsWith("172.")
+      isPrivateIpv4(parsed.hostname)
     );
   } catch {
     return false;

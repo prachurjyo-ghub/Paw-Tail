@@ -14,42 +14,54 @@ export const DEFAULT_ADMIN_PROFILE = {
   lastLogin: "",
 };
 
-function canUseStorage() {
-  return typeof window !== "undefined" && !!window.localStorage;
+function getLocalStorage() {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
 }
 
 export function loadAdminSession() {
-  if (!canUseStorage()) {
+  const storage = getLocalStorage();
+  if (!storage) {
     return DEFAULT_ADMIN_PROFILE;
   }
 
   try {
-    const raw = window.localStorage.getItem(ADMIN_SESSION_KEY);
+    const raw = storage.getItem(ADMIN_SESSION_KEY);
     if (!raw) {
       return DEFAULT_ADMIN_PROFILE;
     }
 
-    return { ...DEFAULT_ADMIN_PROFILE, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return DEFAULT_ADMIN_PROFILE;
+    }
+
+    return { ...DEFAULT_ADMIN_PROFILE, ...parsed };
   } catch {
     return DEFAULT_ADMIN_PROFILE;
   }
 }
 
 export function saveAdminSession(session) {
-  if (!canUseStorage()) {
+  const storage = getLocalStorage();
+  if (!storage) {
     return;
   }
 
-  window.localStorage.setItem(
+  storage.setItem(
     ADMIN_SESSION_KEY,
     JSON.stringify({ ...DEFAULT_ADMIN_PROFILE, ...session })
   );
 }
 
 export function clearAdminSession() {
-  if (!canUseStorage()) {
+  const storage = getLocalStorage();
+  if (!storage) {
     return;
   }
 
-  window.localStorage.removeItem(ADMIN_SESSION_KEY);
+  storage.removeItem(ADMIN_SESSION_KEY);
 }

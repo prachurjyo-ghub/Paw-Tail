@@ -1,18 +1,20 @@
+const mongoose = require("mongoose");
+
 const Review = require("../models/Review");
 
 const BASELINE = { averageRating: 5, reviewCount: 1, isBaseline: true };
 
 async function getRatingMapForProductIds(productIds = []) {
-  const ids = productIds
+  const ids = [...new Set(productIds
     .map((id) => id?.toString?.() || id)
-    .filter(Boolean);
+    .filter((id) => mongoose.Types.ObjectId.isValid(id)))];
 
   if (!ids.length) return new Map();
 
   const rows = await Review.aggregate([
     {
       $match: {
-        product: { $in: ids.map((id) => new (require("mongoose").Types.ObjectId)(id)) },
+        product: { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) },
         isHidden: { $ne: true },
       },
     },

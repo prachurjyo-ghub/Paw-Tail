@@ -1,24 +1,45 @@
 const CHECKOUT_PREFS_KEY = "pawtail-checkout-prefs";
+const DEFAULT_CHECKOUT_PREFS = {
+  promoCode: "",
+  deliveryZone: "inside-dhaka",
+};
+const DELIVERY_ZONES = new Set(["inside-dhaka", "outside-dhaka"]);
+
+const normalizeCheckoutPrefs = (value) => ({
+  promoCode: typeof value?.promoCode === "string" ? value.promoCode.trim() : "",
+  deliveryZone: DELIVERY_ZONES.has(value?.deliveryZone)
+    ? value.deliveryZone
+    : DEFAULT_CHECKOUT_PREFS.deliveryZone,
+});
+
+const getSessionStorage = () => {
+  try {
+    return typeof window === "undefined" ? null : window.sessionStorage;
+  } catch {
+    return null;
+  }
+};
 
 export const saveCheckoutPrefs = ({ promoCode = "", deliveryZone = "inside-dhaka" } = {}) => {
-  sessionStorage.setItem(
+  const storage = getSessionStorage();
+  if (!storage) return;
+  storage.setItem(
     CHECKOUT_PREFS_KEY,
-    JSON.stringify({ promoCode, deliveryZone })
+    JSON.stringify(normalizeCheckoutPrefs({ promoCode, deliveryZone }))
   );
 };
 
 export const readCheckoutPrefs = () => {
   try {
-    const stored = JSON.parse(sessionStorage.getItem(CHECKOUT_PREFS_KEY) || "{}");
-    return {
-      promoCode: stored.promoCode || "",
-      deliveryZone: stored.deliveryZone || "inside-dhaka",
-    };
+    const storage = getSessionStorage();
+    if (!storage) return { ...DEFAULT_CHECKOUT_PREFS };
+    const stored = JSON.parse(storage.getItem(CHECKOUT_PREFS_KEY) || "{}");
+    return normalizeCheckoutPrefs(stored);
   } catch {
-    return { promoCode: "", deliveryZone: "inside-dhaka" };
+    return { ...DEFAULT_CHECKOUT_PREFS };
   }
 };
 
 export const clearCheckoutPrefs = () => {
-  sessionStorage.removeItem(CHECKOUT_PREFS_KEY);
+  getSessionStorage()?.removeItem(CHECKOUT_PREFS_KEY);
 };
