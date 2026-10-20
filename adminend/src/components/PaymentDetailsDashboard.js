@@ -34,29 +34,25 @@ function getPaymentCards(payments) {
       title: "Total Paid",
       value: formatTk(paidTotal),
       helper: "Money already received from customers.",
-      accent: "from-emerald-400 to-teal-300",
-      ring: "ring-emerald-100",
+      tone: "paid",
     },
     {
       title: "Total Unpaid",
       value: formatTk(unpaidTotal),
       helper: "Money not received yet.",
-      accent: "from-rose-500 via-orange-400 to-accent",
-      ring: "ring-orange-100",
+      tone: "due",
     },
     {
       title: "Paid Orders",
       value: formatCount(paid.length),
       helper: "Orders with cleared payment.",
-      accent: "from-cyan-400 to-sky-300",
-      ring: "ring-cyan-100",
+      tone: "paid",
     },
     {
       title: "Unpaid Orders",
       value: formatCount(unpaid.length),
       helper: "Orders still waiting for payment.",
-      accent: "from-amber-400 to-orange-300",
-      ring: "ring-amber-100",
+      tone: "due",
     },
   ];
 }
@@ -156,39 +152,18 @@ export default function PaymentDetailsDashboard() {
           included in the total due for each order.
         </p>
 
-        <label className="mt-7 flex h-14 items-center rounded-2xl border border-neutral-200 bg-white px-5 text-slate-400 shadow-inner shadow-main/5 lg:hidden">
-          <Icon name="search" className="h-5 w-5" />
-          <input
-            type="search"
-            aria-label="Search payment details"
-            placeholder="Search by order ID, customer, phone, payment, voucher, or status..."
-            value={searchText}
-            onChange={(event) => setSearchText(event.target.value)}
-            className="ml-3 w-full bg-transparent text-sm font-bold text-slate-700 outline-none placeholder:text-slate-300"
-          />
-        </label>
-        <div className="mt-3 hidden items-center gap-2 border-t border-[#e4ece7] pt-3 lg:flex">
-          <span className="mr-0.5 text-[10.5px] font-bold uppercase tracking-[0.09em] text-[#8a9e96]">Filters</span>
-          <select value={paymentMethodFilter} onChange={(event) => setPaymentMethodFilter(event.target.value)} className="h-[30px] rounded-[7px] border border-[#e4ece7] bg-white px-2.5 text-xs text-[#3d554b] outline-none">
-            <option value="All">All Methods</option>
-            {[...new Set(payments.map((payment) => payment.payment).filter(Boolean))].map((method) => <option key={method} value={method}>{method}</option>)}
-          </select>
-          <select value={paymentStatusFilter} onChange={(event) => setPaymentStatusFilter(event.target.value)} className="h-[30px] rounded-[7px] border border-[#e4ece7] bg-white px-2.5 text-xs text-[#3d554b] outline-none">
-            <option value="All">All Payment</option>
-            <option value="Paid">Paid</option>
-            <option value="Due">Unpaid</option>
-          </select>
-        </div>
       </div>
 
       <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
           <article
             key={card.title}
-            className={`relative min-h-40 overflow-hidden rounded-[24px] border border-neutral-200 bg-white p-6 shadow-lg shadow-main/5 ring-1 ${card.ring}`}
+            className="payment-metric-card relative min-h-40 overflow-hidden rounded-[24px] border border-neutral-200 bg-white p-6"
           >
-            <div className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${card.accent}`} />
-            <p className="text-sm font-extrabold text-slate-500">{card.title}</p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-extrabold text-slate-500">{card.title}</p>
+              <span className={`payment-metric-dot payment-metric-dot--${card.tone}`} />
+            </div>
             <p className="mt-5 text-3xl font-black tracking-tight text-slate-950">
               {card.value}
             </p>
@@ -206,89 +181,99 @@ export default function PaymentDetailsDashboard() {
       ) : null}
 
       <div className="mt-8 overflow-hidden rounded-[28px] border border-neutral-200 bg-white shadow-lg shadow-main/5">
-        <div className="hidden items-center justify-between border-b border-[#e4ece7] bg-gradient-to-b from-[#fbfdfc] to-white px-4 py-2.5 lg:flex">
-          <h3 className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7f78]">Payment Records</h3>
-          <span className="text-[11px] text-[#6b7f78]">{filteredPayments.length} orders</span>
+        <div className="data-command-bar border-b px-5 py-4 lg:flex lg:items-center lg:justify-between lg:gap-5">
+          <div className="mb-3 lg:mb-0">
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-base font-black text-slate-900">Payment records</h2>
+              <span className="data-count-pill">{filteredPayments.length}</span>
+            </div>
+            <p className="mt-1 text-xs font-semibold text-slate-400">Review balances and clear outstanding payments.</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[minmax(220px,1fr)_150px_150px] lg:w-[650px]">
+            <label className="data-search-field flex h-10 items-center rounded-xl border px-3">
+              <Icon name="search" className="h-4 w-4 shrink-0" />
+              <input
+                type="search"
+                aria-label="Search payment details"
+                placeholder="Search order, customer or phone"
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+                className="ml-2 min-w-0 flex-1 border-0 bg-transparent p-0 text-xs font-semibold shadow-none outline-none"
+              />
+            </label>
+            <select value={paymentMethodFilter} onChange={(event) => setPaymentMethodFilter(event.target.value)} className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-bold outline-none">
+              <option value="All">All methods</option>
+              {[...new Set(payments.map((payment) => payment.payment).filter(Boolean))].map((method) => <option key={method} value={method}>{method}</option>)}
+            </select>
+            <select value={paymentStatusFilter} onChange={(event) => setPaymentStatusFilter(event.target.value)} className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-bold outline-none">
+              <option value="All">All payments</option>
+              <option value="Paid">Paid</option>
+              <option value="Due">Unpaid</option>
+            </select>
+          </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1280px] border-collapse text-left">
-            <thead className="bg-white">
-              <tr className="border-b border-slate-100 text-xs font-black uppercase tracking-[0.3em] text-slate-300">
-                <th className="px-10 py-6">Customer</th>
-                <th className="px-6 py-6">Order</th>
-                <th className="px-6 py-6">Method</th>
-                <th className="px-6 py-6 text-center">Subtotal</th>
-                <th className="px-6 py-6 text-center">Promo</th>
-                <th className="px-6 py-6 text-center">Delivery</th>
-                <th className="px-6 py-6 text-center">Total</th>
-                <th className="px-6 py-6 text-center">Payment</th>
-                <th className="px-6 py-6 text-center">Order Status</th>
-                <th className="px-8 py-6 text-center">Action</th>
+          <table className="data-table payment-ledger-table w-full min-w-[920px] table-fixed border-collapse text-left">
+            <colgroup>
+              <col className="w-[25%]" />
+              <col className="w-[13%]" />
+              <col className="w-[19%]" />
+              <col className="w-[12%]" />
+              <col className="w-[17%]" />
+              <col className="w-[14%]" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th className="px-6 py-4">Order & customer</th>
+                <th className="px-5 py-4">Method</th>
+                <th className="px-5 py-4">Amount breakdown</th>
+                <th className="px-5 py-4 text-right">Total</th>
+                <th className="px-5 py-4">Status</th>
+                <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredPayments.map((payment) => (
-                <tr key={payment.mongoId} className="border-b border-slate-100 last:border-b-0">
-                  <td className="px-10 py-7">
-                    <p className="text-sm font-black text-slate-700">{payment.customer}</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-400">{payment.phone}</p>
-                  </td>
-                  <td className="px-6 py-7">
+                <tr key={payment.mongoId}>
+                  <td className="px-6 py-3.5">
                     <p className="text-sm font-black text-main">{payment.id}</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-400">{payment.date}</p>
+                    <p className="mt-1.5 text-sm font-black text-slate-700">{payment.customer}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-400">{payment.phone} · {payment.date}</p>
                   </td>
-                  <td className="px-6 py-7 text-sm font-bold text-slate-500">
+                  <td className="px-5 py-3.5 text-sm font-bold text-slate-600">
                     {payment.payment}
                   </td>
-                  <td className="px-6 py-7 text-center text-sm font-black text-slate-700">
-                    {payment.subtotal}
+                  <td className="px-5 py-3.5">
+                    <dl className="amount-breakdown grid grid-cols-[auto_auto] gap-x-4 gap-y-1 text-xs">
+                      <dt>Subtotal</dt><dd>{payment.subtotal}</dd>
+                      <dt>Discount</dt><dd className={payment.discountAmount > 0 ? "text-emerald-700" : ""}>{payment.discountAmount > 0 ? `-${payment.discount}` : "—"}</dd>
+                      <dt>Delivery</dt><dd>{payment.delivery}</dd>
+                    </dl>
+                    {payment.promoCode ? <p className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-main">Code: {payment.promoCode}</p> : null}
                   </td>
-                  <td className="px-6 py-7 text-center">
-                    {payment.discountAmount > 0 ? (
-                      <div>
-                        <p className="text-sm font-black text-emerald-700">
-                          -{payment.discount}
-                        </p>
-                        {payment.promoCode ? (
-                          <p className="mt-1 text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-                            {payment.promoCode}
-                          </p>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <span className="text-sm font-bold text-slate-300">-</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-7 text-center text-sm font-black text-slate-700">
-                    {payment.delivery}
-                  </td>
-                  <td className="px-6 py-7 text-center text-sm font-black text-slate-800">
+                  <td className="px-5 py-3.5 text-right text-sm font-black text-slate-900">
                     {payment.total}
                   </td>
-                  <td className="px-6 py-7 text-center">
-                    <Badge tone={payment.billStatus === "Paid" ? "green" : "yellow"}>
-                      {payment.billStatus === "Paid" ? "Paid" : "Pending"}
-                    </Badge>
+                  <td className="px-5 py-3.5">
+                    <div className="flex flex-col items-start gap-1.5">
+                      <Badge tone={payment.billStatus === "Paid" ? "green" : "yellow"}>{payment.billStatus === "Paid" ? "Paid" : "Pending"}</Badge>
+                      <Badge tone={statusTone(payment.orderStatus)}>{payment.orderStatus}</Badge>
+                    </div>
                   </td>
-                  <td className="px-6 py-7 text-center">
-                    <Badge tone={statusTone(payment.orderStatus)}>
-                      {payment.orderStatus}
-                    </Badge>
-                  </td>
-                  <td className="px-8 py-6">
-                    <div className="flex flex-col items-center gap-3">
+                  <td className="px-6 py-3.5">
+                    <div className="flex flex-col items-end gap-1.5">
                       <Link
                         href={`/dashboard/orders/${payment.mongoId}`}
-                        className="inline-flex h-11 items-center rounded-2xl border border-main/20 bg-mainSoft/60 px-6 text-sm font-black text-main shadow-sm transition hover:bg-mainSoft"
+                        className="admin-secondary-action inline-flex h-8 items-center rounded-lg border px-3 text-[11px] font-black transition"
                       >
-                        View order
+                        View
                       </Link>
                       {payment.billStatus !== "Paid" ? (
                         <button
                           type="button"
                           onClick={() => handleMarkPaid(payment)}
                           disabled={updatingId === payment.mongoId}
-                          className="h-12 rounded-2xl bg-main px-8 text-sm font-black text-white shadow-md shadow-main/20 transition hover:bg-mainHover disabled:cursor-not-allowed disabled:opacity-60"
+                          className="h-8 rounded-lg bg-main px-3 text-[11px] font-black text-white transition hover:bg-mainHover disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {updatingId === payment.mongoId ? "Saving..." : "Mark paid"}
                         </button>
@@ -300,7 +285,7 @@ export default function PaymentDetailsDashboard() {
               {!loading && filteredPayments.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={6}
                     className="px-8 py-10 text-center text-sm font-semibold text-slate-400"
                   >
                     No payment records found.

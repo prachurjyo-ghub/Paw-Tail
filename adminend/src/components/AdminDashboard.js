@@ -15,26 +15,32 @@ const quickActions = [
 
 function HeaderPanel({ todayRevenue }) {
   return (
-    <div className="rounded-[22px] border border-slate-200 bg-white px-4 py-5 shadow-lg shadow-slate-200/60 md:rounded-[28px] md:px-8 md:py-7">
-      <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+    <div className="dashboard-hero overflow-hidden rounded-[28px] px-5 py-6 md:px-8 md:py-8">
+      <div className="relative z-[1] flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
         <div>
-          <p className="text-sm font-black uppercase tracking-[0.35em] text-main">
-            Overview
-          </p>
-          <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 md:mt-3 md:text-4xl">
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-white/60">
+              Store command center
+            </p>
+            <span className="dashboard-live-pill inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em]">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Live
+            </span>
+          </div>
+          <h1 className="mt-3 text-3xl font-black tracking-[-0.04em] text-white md:text-4xl">
             Dashboard
           </h1>
-          <p className="mt-4 max-w-4xl text-sm font-semibold leading-7 text-slate-400 md:text-base">
+          <p className="mt-3 max-w-3xl text-sm font-medium leading-6 text-white/60 md:text-base">
             Monitor store performance, orders, inventory, and admin tasks from
             one clean command center.
           </p>
         </div>
 
-        <div className="rounded-2xl bg-mainSoft px-5 py-4">
-          <p className="text-xs font-black uppercase tracking-[0.25em] text-main">
-            Today
+        <div className="dashboard-today-card min-w-[220px] rounded-2xl px-5 py-4 backdrop-blur-xl">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/55">
+            Today&apos;s order value
           </p>
-          <p className="mt-2 text-2xl font-black text-slate-950">{formatTk(todayRevenue)}</p>
+          <p className="mt-2 text-3xl font-black tracking-[-0.04em] text-white">{formatTk(todayRevenue)}</p>
+          <p className="mt-1 text-xs font-semibold text-white/45">Updated from live orders</p>
         </div>
       </div>
     </div>
@@ -43,7 +49,7 @@ function HeaderPanel({ todayRevenue }) {
 
 function RevenuePanel({ revenueBars }) {
   return (
-    <section className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/60">
+    <section className="admin-panel dashboard-chart-panel rounded-[24px] border p-6">
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-lg font-black text-slate-950">Weekly Revenue</p>
@@ -51,15 +57,19 @@ function RevenuePanel({ revenueBars }) {
             Sales movement for this week
           </p>
         </div>
+        <span className="rounded-full bg-mainSoft px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-main">Last 7 days</span>
       </div>
 
-      <div className="mt-8 flex h-72 items-end gap-4 rounded-2xl bg-mainSoft/45 px-4 pb-4 pt-8">
-        {revenueBars.map(([day, height]) => (
+      <div className="dashboard-chart mt-7 flex h-72 items-end gap-2 rounded-2xl px-3 pb-4 pt-8 sm:gap-4 sm:px-4">
+        {revenueBars.map(([day, height, total]) => (
           <div key={day} className="flex min-w-0 flex-1 flex-col items-center gap-3">
-            <div className="flex h-48 w-full items-end">
+            <div className="group relative flex h-48 w-full items-end">
+              <span className="dashboard-bar-value pointer-events-none absolute left-1/2 z-10 -translate-x-1/2 rounded-lg px-2 py-1 text-[9px] font-black opacity-0 shadow-lg transition group-hover:-translate-y-1 group-hover:opacity-100">
+                {formatTk(total)}
+              </span>
               <div
-                className="w-full rounded-t-xl bg-gradient-to-t from-main to-accent shadow-lg shadow-main/10"
-                style={{ height: `${height}%` }}
+                className="dashboard-revenue-bar w-full rounded-t-xl transition-all duration-300 group-hover:brightness-110"
+                style={{ height: `${Math.max(height, 4)}%` }}
               />
             </div>
             <p className="text-xs font-black text-slate-500">{day}</p>
@@ -72,7 +82,7 @@ function RevenuePanel({ revenueBars }) {
 
 function ActivityPanel({ healthData }) {
   return (
-    <section className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/60">
+    <section className="admin-panel rounded-[24px] border p-6">
       <p className="text-lg font-black text-slate-950">Store Health</p>
       <p className="mt-1 text-sm font-bold text-slate-400">
         Current operational snapshot
@@ -85,8 +95,8 @@ function ActivityPanel({ healthData }) {
               <p className="text-sm font-black text-slate-700">{label}</p>
               <Badge tone={tone}>{String(value).padStart(2, "0")}</Badge>
             </div>
-            <div className="mt-3 h-3 rounded-full bg-slate-100">
-              <div className={`h-3 rounded-full bg-main`} style={{ width: width }} />
+            <div className="admin-progress mt-3 h-2 rounded-full">
+              <div className={`admin-progress-fill health-tone-${tone} h-2 rounded-full`} style={{ width: width }} />
             </div>
           </div>
         ))}
@@ -177,14 +187,14 @@ export default function AdminDashboard() {
     });
 
     const maxWeekly = Math.max(...last7Days.map(d => d.total), 1);
-    const revenueBarsData = last7Days.map(d => [d.day, Math.round((d.total / maxWeekly) * 100)]);
+    const revenueBarsData = last7Days.map(d => [d.day, Math.round((d.total / maxWeekly) * 100), d.total]);
 
     const lowStockItems = products.filter(p => (p.stockQuantity ?? 0) < 10);
     const metricsData = [
-      ["Total Revenue", formatTk(totalRevenue), "Lifetime paid/delivered", "bg-main"],
-      ["Orders", String(orders.length).padStart(2, "0"), `${waitingToShipCount} processing`, "bg-accent"],
-      ["Products", String(products.length).padStart(2, "0"), `${lowStockItems.length} low stock items`, "bg-sky-500"],
-      ["Customers", String(users.length).padStart(2, "0"), "Registered accounts", "bg-emerald-500"],
+      ["Total Revenue", formatTk(totalRevenue), "Lifetime paid/delivered", "chart", "violet"],
+      ["Orders", String(orders.length).padStart(2, "0"), `${waitingToShipCount} processing`, "cart", "coral"],
+      ["Products", String(products.length).padStart(2, "0"), `${lowStockItems.length} low stock items`, "folder", "cyan"],
+      ["Customers", String(users.length).padStart(2, "0"), "Registered accounts", "users", "emerald"],
     ];
 
     const healthDataResult = [
@@ -233,13 +243,17 @@ export default function AdminDashboard() {
       <HeaderPanel todayRevenue={todayRevenue} />
 
       <div className="mt-4 grid grid-cols-2 gap-3 md:mt-6 md:gap-4 xl:grid-cols-4">
-        {metrics.map(([title, value, helper, color]) => (
+        {metrics.map(([title, value, helper, icon, tone]) => (
           <article
             key={title}
-            className="relative overflow-hidden rounded-[18px] border border-slate-200 bg-white p-4 shadow-lg shadow-slate-200/60 md:rounded-[22px] md:p-5"
+            className={`admin-panel dashboard-metric metric-${tone} relative overflow-hidden rounded-[22px] border p-4 md:p-5`}
           >
-            <div className={`absolute inset-x-0 top-0 h-1.5 ${color}`} />
-            <p className="text-sm font-black text-slate-500">{title}</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm font-black text-slate-500">{title}</p>
+              <span className="metric-icon flex h-9 w-9 items-center justify-center rounded-xl">
+                <Icon name={icon} className="h-[17px] w-[17px]" />
+              </span>
+            </div>
             <p className="mt-3 text-2xl font-black tracking-tight text-slate-950 md:mt-4 md:text-3xl">
               {value}
             </p>
@@ -256,7 +270,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.9fr)]">
-        <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-lg shadow-slate-200/60">
+        <section className="admin-panel overflow-hidden rounded-[24px] border">
           <div className="border-b border-slate-100 px-6 py-5">
             <p className="text-lg font-black text-slate-950">Recent Orders</p>
             <p className="mt-1 text-sm font-bold text-slate-400">
@@ -322,14 +336,14 @@ export default function AdminDashboard() {
         </section>
 
         <div className="space-y-6">
-          <section className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/60">
+          <section className="admin-panel rounded-[24px] border p-6">
             <p className="text-lg font-black text-slate-950">Quick Actions</p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
               {quickActions.map(([label, href, icon]) => (
                 <Link
                   key={label}
                   href={href}
-                  className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 px-4 text-sm font-black text-main transition hover:bg-mainSoft"
+                  className="admin-quick-action flex h-12 items-center gap-3 rounded-xl border px-4 text-sm font-black text-main transition"
                 >
                   <Icon name={icon} className="h-5 w-5" />
                   {label}
@@ -338,7 +352,7 @@ export default function AdminDashboard() {
             </div>
           </section>
 
-          <section className="rounded-[24px] border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/60">
+          <section className="admin-panel rounded-[24px] border p-6">
             <p className="text-lg font-black text-slate-950">Low Stock</p>
             <div className="mt-5 space-y-4">
               {lowStock.length === 0 && (

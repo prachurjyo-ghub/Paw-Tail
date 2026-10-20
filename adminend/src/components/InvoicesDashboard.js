@@ -152,9 +152,9 @@ export default function InvoicesDashboard() {
       </div>
 
       <div className="mt-5 overflow-hidden rounded-[24px] border border-neutral-200 bg-white shadow-lg shadow-main/5">
-        <div className="hidden items-center justify-between border-b border-[#e4ece7] bg-gradient-to-b from-[#fbfdfc] to-white px-4 py-2.5 lg:flex">
-          <h3 className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7f78]">Paid Invoices</h3>
-          <span className="text-[11px] text-[#6b7f78]">{invoices.length} invoices</span>
+        <div className="admin-table-toolbar hidden items-center justify-between border-b px-4 py-2.5 lg:flex">
+          <h3 className="text-[11.5px] font-bold uppercase tracking-[0.1em]">Paid Invoices</h3>
+          <span className="text-[11px]">{invoices.length} invoices</span>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-left">

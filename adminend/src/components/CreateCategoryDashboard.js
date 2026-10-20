@@ -379,7 +379,7 @@ export default function CreateCategoryDashboard() {
               How this subcategory icon and label will look:
             </p>
 
-            <div className="mt-4 flex items-center justify-center rounded-2xl bg-[#fbf7f1] p-6">
+            <div className="admin-preview-surface mt-4 flex items-center justify-center rounded-2xl p-6">
               <div className="flex h-[155px] w-[170px] flex-col items-center justify-center rounded-2xl border border-neutral-200/80 bg-white p-4 text-center shadow-[0_4px_20px_rgba(23,63,49,0.04)]">
                 {logoType === "image" && shownImage ? (
                   <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-mainSoft">

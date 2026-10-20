@@ -118,9 +118,9 @@ export default function CustomerManagementDashboard() {
       </div>
 
       <div className="mt-5 overflow-hidden rounded-[24px] border border-neutral-200 bg-white shadow-lg shadow-main/5">
-        <div className="hidden items-center justify-between border-b border-[#e4ece7] bg-gradient-to-b from-[#fbfdfc] to-white px-4 py-2.5 lg:flex">
-          <h3 className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7f78]">Customer Directory</h3>
-          <span className="text-[11px] text-[#6b7f78]">{accounts.length} accounts</span>
+        <div className="admin-table-toolbar hidden items-center justify-between border-b px-4 py-2.5 lg:flex">
+          <h3 className="text-[11.5px] font-bold uppercase tracking-[0.1em]">Customer Directory</h3>
+          <span className="text-[11px]">{accounts.length} accounts</span>
         </div>
         <div className="space-y-3 p-3 md:hidden">
           {loading ? (

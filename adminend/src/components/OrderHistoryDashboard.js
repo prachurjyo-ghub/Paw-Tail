@@ -52,36 +52,36 @@ export const orderDashboardSummaryCards = [
     title: "Total Orders",
     value: "00",
     description: "All orders currently recorded in the system.",
-    accent: "from-cyan-400 to-sky-300",
-    ring: "ring-cyan-100",
+    accent: "order-accent-total",
+    ring: "ring-main/10",
   },
   {
     title: "Processing Orders",
     value: "00",
     description: "Orders currently being prepared.",
-    accent: "from-violet-500 to-fuchsia-300",
-    ring: "ring-violet-100",
+    accent: "order-accent-processing",
+    ring: "ring-main/10",
   },
   {
     title: "Shipping Orders",
     value: "00",
     description: "Orders already shipped out for delivery.",
-    accent: "from-indigo-500 to-cyan-300",
-    ring: "ring-indigo-100",
+    accent: "order-accent-shipping",
+    ring: "ring-main/10",
   },
   {
     title: "Pending Orders",
     value: "00",
     description: "New orders still waiting for action.",
-    accent: "from-slate-500 to-slate-300",
-    ring: "ring-slate-100",
+    accent: "order-accent-pending",
+    ring: "ring-main/10",
   },
   {
     title: "Due Orders",
     value: "00",
     description: "Orders whose payment has not been cleared yet.",
-    accent: "from-rose-500 via-orange-400 to-accent",
-    ring: "ring-orange-100",
+    accent: "order-accent-due",
+    ring: "ring-accent/15",
   },
 ];
 
@@ -419,7 +419,7 @@ export default function OrderHistoryDashboard({
               {pageDescription}
             </p>
           </div>
-          <button type="button" onClick={exportOrders} className="hidden h-[30px] items-center gap-1.5 rounded-[7px] border border-[#e4ece7] bg-white px-3 text-[11.5px] font-semibold text-[#3d554b] hover:bg-[#eef7f2] lg:inline-flex">
+          <button type="button" onClick={exportOrders} className="admin-secondary-action hidden h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition lg:inline-flex">
             <Icon name="download" className="h-3.5 w-3.5" /> Export
           </button>
         </div>
@@ -435,26 +435,12 @@ export default function OrderHistoryDashboard({
             className="ml-3 w-full bg-transparent text-sm font-bold text-slate-700 outline-none placeholder:text-slate-300"
           />
         </label>
-        <div className="mt-3 hidden items-center gap-2 border-t border-[#e4ece7] pt-3 lg:flex">
-          <span className="mr-0.5 text-[10.5px] font-bold uppercase tracking-[0.09em] text-[#8a9e96]">Filters</span>
-          <select value={mobileStatusFilter} onChange={(event) => setMobileStatusFilter(event.target.value)} className="h-[30px] rounded-[7px] border border-[#e4ece7] bg-white px-2.5 text-xs text-[#3d554b] outline-none">
-            {(editableStatus
-              ? ["All", "Pending", "Processing", "Shipping"]
-              : ["All", "Delivered", "Cancelled"]
-            ).map((status) => <option key={status} value={status}>{status === "All" ? "All Status" : status}</option>)}
-          </select>
-          <select value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)} className="h-[30px] rounded-[7px] border border-[#e4ece7] bg-white px-2.5 text-xs text-[#3d554b] outline-none">
-            <option value="All">All Payment</option>
-            <option value="Paid">Paid</option>
-            <option value="Due">Unpaid</option>
-          </select>
-        </div>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 md:mt-8 md:grid-cols-2 md:gap-5 xl:grid-cols-5">
         {displayCards.map((card) => (
-          <article key={card.title} className={`relative min-h-0 overflow-hidden rounded-2xl border border-neutral-200 bg-white p-3 shadow-lg shadow-main/5 ring-1 md:min-h-40 md:rounded-[24px] md:p-6 ${displayCards.length % 2 ? "last:col-span-2 lg:last:col-span-1" : ""} ${card.ring}`}>
-            <div className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${card.accent}`} />
+          <article key={card.title} className={`order-summary-card relative min-h-0 overflow-hidden rounded-2xl border border-neutral-200 bg-white p-3 ring-1 md:min-h-40 md:rounded-[24px] md:p-6 ${displayCards.length % 2 ? "last:col-span-2 lg:last:col-span-1" : ""} ${card.ring}`}>
+            <div className={`order-summary-accent absolute inset-x-0 top-0 h-1 ${card.accent}`} />
             <p className="truncate text-xs font-extrabold text-slate-500 md:text-sm">{card.title}</p>
             <p className="mt-2 text-2xl font-black tracking-tight text-slate-950 md:mt-5 md:text-3xl">{card.value}</p>
             <p className="mt-1 line-clamp-2 text-[11px] font-semibold leading-4 text-slate-400 md:mt-4 md:text-sm md:leading-6">{card.description}</p>
@@ -499,8 +485,8 @@ export default function OrderHistoryDashboard({
                 <p className="mt-1 text-xs font-semibold text-slate-400">{order.date}</p>
               </div>
               <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-                <Badge tone={orderStatusTone(order.orderStatus)}>{order.orderStatus}</Badge>
-                <Badge tone={order.billStatus === "Paid" ? "green" : "yellow"}>{order.billStatus}</Badge>
+                {!editableStatus ? <Badge tone={orderStatusTone(order.orderStatus)}>{order.orderStatus}</Badge> : null}
+                {!editablePayment ? <Badge tone={order.billStatus === "Paid" ? "green" : "yellow"}>{order.billStatus}</Badge> : null}
               </div>
             </div>
 
@@ -560,92 +546,113 @@ export default function OrderHistoryDashboard({
       </div>
 
       <div className="mt-8 hidden overflow-hidden rounded-[28px] border border-neutral-200 bg-white shadow-lg shadow-main/5 md:block">
-        <div className="hidden items-center justify-between border-b border-[#e4ece7] bg-gradient-to-b from-[#fbfdfc] to-white px-4 py-2.5 lg:flex">
-          <h3 className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-[#6b7f78]">{editableStatus ? "Order List" : "History Log"}</h3>
-          <span className="text-[11px] text-[#6b7f78]">{filteredRows.length} orders</span>
+        <div className="data-command-bar border-b px-5 py-4 lg:flex lg:items-center lg:justify-between lg:gap-5">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-base font-black text-slate-900">{editableStatus ? "Active orders" : "Order history"}</h2>
+              <span className="data-count-pill">{filteredRows.length}</span>
+            </div>
+            <p className="mt-1 text-xs font-semibold text-slate-400">{editableStatus ? "Update payment and fulfillment without leaving the list." : "Delivered and cancelled order records."}</p>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(220px,1fr)_145px_145px] lg:mt-0 lg:w-[650px]">
+            <label className="data-search-field flex h-10 items-center rounded-xl border px-3">
+              <Icon name="search" className="h-4 w-4 shrink-0" />
+              <input
+                type="search"
+                aria-label="Search orders"
+                placeholder="Search order, customer or method"
+                value={searchText}
+                onChange={(event) => setSearchText(event.target.value)}
+                className="ml-2 min-w-0 flex-1 border-0 bg-transparent p-0 text-xs font-semibold shadow-none outline-none"
+              />
+            </label>
+            <select value={mobileStatusFilter} onChange={(event) => setMobileStatusFilter(event.target.value)} className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-bold outline-none">
+              {(editableStatus ? ["All", "Pending", "Processing", "Shipping"] : ["All", "Delivered", "Cancelled"]).map((status) => <option key={status} value={status}>{status === "All" ? "All statuses" : status}</option>)}
+            </select>
+            <select value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)} className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-bold outline-none">
+              <option value="All">All payments</option>
+              <option value="Paid">Paid</option>
+              <option value="Due">Unpaid</option>
+            </select>
+          </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] border-collapse text-left">
-            <thead className="bg-white">
-              <tr className="border-b border-slate-100 text-xs font-black uppercase tracking-[0.3em] text-slate-300">
-                <th className="px-14 py-6">Order ID</th>
-                <th className="px-8 py-6">Customer</th>
-                <th className="px-8 py-6 text-center">Payment</th>
-                <th className="px-8 py-6">Total</th>
-                <th className="px-8 py-6 text-center">Status</th>
-                <th className="px-10 py-6 text-center">Action</th>
+          <table className="data-table order-operations-table w-full min-w-[960px] table-fixed border-collapse text-left">
+            <colgroup>
+              <col className="w-[19%]" />
+              <col className="w-[19%]" />
+              <col className="w-[13%]" />
+              <col className="w-[13%]" />
+              <col className="w-[12%]" />
+              <col className="w-[15%]" />
+              <col className="w-[9%]" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th className="px-6 py-4">Order</th>
+                <th className="px-5 py-4">Customer</th>
+                <th className="px-5 py-4">Method</th>
+                <th className="px-5 py-4">Payment</th>
+                <th className="px-5 py-4 text-right">Total</th>
+                <th className="px-5 py-4">Fulfillment</th>
+                <th className="px-6 py-4 text-right">Action</th>
               </tr>
             </thead>
             <tbody>
               {filteredRows.map((order) => (
-                <tr key={order.mongoId} className="border-b border-slate-100 last:border-b-0">
-                  <td className="px-14 py-7 text-sm font-black text-slate-700">{order.id}</td>
-                  <td className="px-8 py-7">
-                    <p className="text-sm font-black text-slate-700">{order.customer}</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-400">{order.date}</p>
+                <tr key={order.mongoId}>
+                  <td className="px-6 py-3.5">
+                    <p className="text-sm font-black text-main">{order.id}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-400">{order.date}</p>
                   </td>
-                  <td className="px-8 py-7 text-center">
-                    <p className="text-sm font-semibold text-slate-500">{order.payment}</p>
-                    <p className="mt-1 text-xs font-black uppercase tracking-[0.25em] text-slate-400">
-                      {order.billStatus}
-                    </p>
+                  <td className="px-5 py-3.5">
+                    <p className="truncate text-sm font-black text-slate-700">{order.customer}</p>
+                  </td>
+                  <td className="px-5 py-3.5 text-sm font-bold text-slate-600">
+                    {order.payment}
+                  </td>
+                  <td className="px-5 py-3.5">
                     {editablePayment ? (
                       <select
                         aria-label={`Update payment for ${order.id}`}
                         value={order.billStatus === "Paid" ? "Paid" : "Pending"}
-                        onChange={(event) =>
-                          handleOrderPaymentChange(order, event.target.value)
-                        }
-                        className="mt-2 h-9 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-black text-main outline-none transition focus:border-main"
+                        onChange={(event) => handleOrderPaymentChange(order, event.target.value)}
+                        className={`compact-state-select ${order.billStatus === "Paid" ? "is-paid" : "is-due"}`}
                       >
-                        {paymentStatusOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
+                        {paymentStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                       </select>
-                    ) : null}
+                    ) : (
+                      <Badge tone={order.billStatus === "Paid" ? "green" : "yellow"}>{order.billStatus}</Badge>
+                    )}
                   </td>
-                  <td className="px-8 py-7 text-sm font-black text-slate-800">{order.total}</td>
-                  <td className="px-8 py-7">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="flex items-center justify-center gap-2">
-                        <Badge tone={orderStatusTone(order.orderStatus)}>{order.orderStatus}</Badge>
-                        <Badge tone={order.billStatus === "Paid" ? "green" : "yellow"}>{order.billStatus}</Badge>
-                      </div>
-                      {editableStatus ? (
+                  <td className="px-5 py-3.5 text-right text-sm font-black text-slate-900">{order.total}</td>
+                  <td className="px-5 py-3.5">
+                    {editableStatus ? (
                         <select
                           aria-label={`Update status for ${order.id}`}
                           value={order.orderStatus}
-                          onChange={(event) =>
-                            handleOrderStatusChange(order, event.target.value)
-                          }
-                          className="h-9 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-black text-main outline-none transition focus:border-main"
+                          onChange={(event) => handleOrderStatusChange(order, event.target.value)}
+                          className={`compact-state-select is-${orderStatusTone(order.orderStatus)}`}
                         >
-                          {orderStatusOptions.map((status) => (
-                            <option key={status} value={status}>
-                              {status}
-                            </option>
-                          ))}
+                          {orderStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
                         </select>
-                      ) : null}
-                    </div>
+                    ) : <Badge tone={orderStatusTone(order.orderStatus)}>{order.orderStatus}</Badge>}
                   </td>
-                  <td className="px-10 py-7 text-center">
+                  <td className="px-6 py-3.5 text-right">
                     {viewBasePath ? (
                       <Link
                         href={`${viewBasePath}/${order.mongoId}`}
-                        className="inline-flex h-11 items-center rounded-2xl bg-main px-6 text-sm font-black text-white shadow-md shadow-main/20 transition hover:bg-mainHover"
+                        className="admin-secondary-action inline-flex h-9 items-center rounded-lg border px-3 text-xs font-black transition"
                       >
-                        View
+                        Details
                       </Link>
                     ) : (
                       <button
                         type="button"
                         onClick={() => setSelectedOrder(order)}
-                        className="h-11 rounded-2xl bg-main px-6 text-sm font-black text-white shadow-md shadow-main/20 transition hover:bg-mainHover"
+                        className="admin-secondary-action h-9 rounded-lg border px-3 text-xs font-black transition"
                       >
-                        View
+                        Details
                       </button>
                     )}
                   </td>
@@ -653,7 +660,7 @@ export default function OrderHistoryDashboard({
               ))}
               {!loading && filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-8 py-10 text-center text-sm font-semibold text-slate-400">
+                  <td colSpan={7} className="px-8 py-10 text-center text-sm font-semibold text-slate-400">
                     No orders found.
                   </td>
                 </tr>

@@ -52,7 +52,7 @@ export default function LogoutButton({
         disabled={loading}
         aria-label="Logout"
         title="Logout"
-        className="flex h-8 w-8 items-center justify-center rounded-[7px] border border-[#e4ece7] bg-white text-[#3d554b] transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+        className="admin-icon-button admin-logout-button flex h-9 w-9 items-center justify-center rounded-xl border transition disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? (
           <span className="text-xs font-bold">...</span>

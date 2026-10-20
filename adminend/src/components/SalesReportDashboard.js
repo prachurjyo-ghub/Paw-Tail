@@ -2,22 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import DashboardShell, { Badge } from "@/components/DashboardShell";
+import DashboardShell, { Badge, Icon } from "@/components/DashboardShell";
 import { useToast } from "@/components/ui/toast";
 import { adminApi } from "@/lib/adminApi";
 
-const cardStyles = [
-  ["from-cyan-400 to-sky-300", "bg-cyan-400"],
-  ["from-emerald-400 to-teal-300", "bg-emerald-400"],
-  ["from-violet-500 to-fuchsia-300", "bg-violet-400"],
-  ["from-amber-400 to-orange-300", "bg-amber-400"],
-  ["from-cyan-400 to-sky-300", "bg-cyan-400"],
-  ["from-violet-500 to-fuchsia-300", "bg-violet-400"],
-  ["from-rose-500 via-orange-400 to-accent", "bg-accent"],
-  ["from-emerald-400 to-teal-300", "bg-emerald-400"],
-];
-
-const mixColors = ["bg-main", "bg-cyan-400", "bg-accent", "bg-violet-400", "bg-emerald-400"];
+const mixColors = ["sales-mix-1", "sales-mix-2", "sales-mix-3", "sales-mix-4", "sales-mix-5"];
 const paymentMethodLabels = {
   COD: "Cash on delivery",
   BKASH: "bKash",
@@ -120,7 +109,7 @@ function buildMix(entries, total) {
 function chartGradient(data) {
   if (!data.length || data[0].label === "No sales") return "#e2e8f0";
 
-  const palette = ["#173f31", "#22c1e8", "#f28c38", "#a78bfa", "#34d399"];
+  const palette = ["#174b5b", "#4e7884", "#c8873d", "#8a725d", "#709185"];
   let cursor = 0;
   const stops = data.map((item, index) => {
     const size = Number(item.value.replace("%", "")) || 0;
@@ -148,12 +137,12 @@ function buildFlowPoints(orders, reportType) {
   const max = Math.max(...rows.map(([, total]) => total), 1);
 
   if (!rows.length) {
-    return [["No sales", "BDT 0", 8, 8]];
+    return [["No sales", "BDT 0", 8]];
   }
 
   return rows.map(([label, total]) => {
     const height = Math.max(10, Math.round((total / max) * 88));
-    return [label, shortMoney(total), height, Math.max(8, height - 18)];
+    return [label, shortMoney(total), height];
   });
 }
 
@@ -278,21 +267,14 @@ function useSalesData(reportType, anchorDate) {
     return {
       loading,
       cards: [
-        ["Revenue", money(totalRevenue), `${paidOrders.length} paid orders in range`],
-        ["Sales Profit", money(totalRevenue), "Net collected revenue; cost data is not stored"],
-        ["Gross Profit", money(totalRevenue), "Cost-of-goods data is not available"],
-        ["Net Profit", money(totalRevenue - 0), "After recorded procurement spend"],
-        ["Orders Closed", String(revenueOrders.length), `${cancelledOrders.length} cancelled orders`],
-        ["Discounts", money(discounts), "Promo discounts applied in this range"],
-        ["Procurement Spend", money(0), "Supplier invoice data is not stored"],
-        ["Due Revenue", money(dueRevenue), `${unpaidOrders.length} unpaid orders`],
-      ].map(([title, value, helper], index) => ({
-        title,
-        value,
-        helper,
-        accent: cardStyles[index][0],
-        marker: cardStyles[index][1],
-      })),
+        ["Collected Revenue", money(totalRevenue), `${paidOrders.length} paid orders in range`, "primary"],
+        ["Paid Orders", String(paidOrders.length), "Payments successfully cleared", "positive"],
+        ["Due Revenue", money(dueRevenue), `${unpaidOrders.length} orders awaiting payment`, "warning"],
+        ["Discounts", money(discounts), "Promo value applied in this range", "neutral"],
+        ["Closed Orders", String(revenueOrders.length), "Paid, non-cancelled orders", "neutral"],
+        ["Cancelled", String(cancelledOrders.length), "Orders cancelled in this range", "muted"],
+        ["Delivery Revenue", money(deliveryRevenue), "Delivery charges recorded", "neutral"],
+      ].map(([title, value, helper, tone]) => ({ title, value, helper, tone })),
       flowPoints: buildFlowPoints(revenueOrders, reportType),
       categoryMix: buildMix(categoryTotals, totalRevenue),
       productMix: buildMix(productTotals, totalRevenue),
@@ -305,8 +287,8 @@ function useSalesData(reportType, anchorDate) {
 
 function ReportHeader({ reportType, anchorDate, onReportTypeChange, onAnchorDateChange }) {
   return (
-    <div className="rounded-[28px] border border-neutral-200 bg-white px-6 py-7 shadow-lg shadow-main/5 md:px-8">
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
+    <div className="admin-page-head rounded-[28px] border border-neutral-200 bg-white px-6 py-7 shadow-lg shadow-main/5 md:px-8">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_560px] xl:items-center">
         <div>
           <p className="text-sm font-black uppercase tracking-[0.35em] text-main/70">
             Reports
@@ -318,18 +300,19 @@ function ReportHeader({ reportType, anchorDate, onReportTypeChange, onAnchorDate
             Review daily, weekly, monthly, and yearly revenue, discounts,
             payment status, and top-selling products from backend orders.
           </p>
-          <p className="mt-5 text-sm font-black text-slate-600">
-            Active range: {rangeLabel(anchorDate, reportType)}
-          </p>
+          <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-mainSoft px-3.5 py-2 text-xs font-black text-main">
+            <span className="h-2 w-2 rounded-full bg-main" />
+            {rangeLabel(anchorDate, reportType)}
+          </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+        <div className="report-control-panel grid gap-3 rounded-2xl border p-4 sm:grid-cols-[1fr_1fr_auto]">
           <label>
             <span className="text-sm font-black text-slate-600">Report Type</span>
             <select
               value={reportType}
               onChange={(event) => onReportTypeChange(event.target.value)}
-              className="mt-2 h-12 w-full rounded-xl border border-cyan-200 bg-white px-4 text-sm font-black text-slate-700 outline-none shadow-sm focus:border-cyan-400"
+              className="mt-2 h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm font-black text-slate-700 outline-none focus:border-main"
             >
               <option>Daily</option>
               <option>Weekly</option>
@@ -343,15 +326,15 @@ function ReportHeader({ reportType, anchorDate, onReportTypeChange, onAnchorDate
               type="date"
               value={anchorDate}
               onChange={(event) => onAnchorDateChange(event.target.value)}
-              className="mt-2 h-12 w-full rounded-xl border border-neutral-200 bg-white px-4 text-sm font-black text-slate-700 outline-none shadow-sm focus:border-main"
+              className="mt-2 h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm font-black text-slate-700 outline-none focus:border-main"
             />
           </label>
           <button
             type="button"
             onClick={() => window.print()}
-            className="mt-7 h-12 rounded-xl bg-[#268ccd] px-6 text-sm font-black text-white shadow-md shadow-sky-700/20 transition hover:bg-[#1f78af]"
+            className="mt-7 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-main px-5 text-sm font-black text-white shadow-sm transition hover:bg-mainHover"
           >
-            Export Report
+            <Icon name="download" className="h-4 w-4" /> Export
           </button>
         </div>
       </div>
@@ -360,39 +343,28 @@ function ReportHeader({ reportType, anchorDate, onReportTypeChange, onAnchorDate
 }
 
 function MetricCards({ cards }) {
-  const primaryCards = cards.slice(0, 5);
-  const secondaryCards = cards.slice(5);
-
   return (
-    <div className="mt-6 space-y-5">
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
-        {primaryCards.map((card) => (
-          <MetricCard key={card.title} card={card} />
-        ))}
-      </div>
-      <div className="grid gap-5 md:grid-cols-3">
-        {secondaryCards.map((card) => (
-          <MetricCard key={card.title} card={card} />
-        ))}
-      </div>
+    <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {cards.map((card, index) => (
+        <MetricCard key={card.title} card={card} featured={index === 0} />
+      ))}
     </div>
   );
 }
 
-function MetricCard({ card }) {
+function MetricCard({ card, featured }) {
   return (
-    <article className="relative flex min-h-44 flex-col overflow-hidden rounded-[24px] border border-neutral-200 bg-white p-5 shadow-lg shadow-main/5">
-      <div className={`absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r ${card.accent}`} />
-      <p className="text-sm font-black text-slate-500">{card.title}</p>
-      <p className="mt-4 whitespace-nowrap text-[clamp(1.35rem,1.55vw,2rem)] font-black leading-tight tracking-tight text-slate-950">
+    <article className={`sales-metric-card sales-metric-card--${card.tone} flex min-h-40 flex-col rounded-[22px] border border-neutral-200 bg-white p-5 ${featured ? "sm:col-span-2 xl:col-span-1" : ""}`}>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-500">{card.title}</p>
+        <span className="sales-metric-indicator" aria-hidden="true" />
+      </div>
+      <p className="mt-5 whitespace-nowrap text-[clamp(1.3rem,1.55vw,1.85rem)] font-black leading-tight tracking-tight text-slate-950">
         {card.value}
       </p>
-      <p className="mt-auto pr-14 pt-7 text-sm font-bold leading-6 text-slate-400">
+      <p className="mt-auto pt-5 text-xs font-semibold leading-5 text-slate-400">
         {card.helper}
       </p>
-      <span
-        className={`absolute bottom-5 right-5 h-12 w-12 rounded-2xl ${card.marker} shadow-lg opacity-95`}
-      />
     </article>
   );
 }
@@ -411,28 +383,22 @@ function FlowChart({ flowPoints }) {
         </div>
         <div className="flex gap-5 text-sm font-black text-slate-500">
           <span className="inline-flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-cyan-400" />
-            Revenue
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <span className="h-3 w-3 rounded-full bg-emerald-400" />
-            Net
+            <span className="h-2.5 w-2.5 rounded-full bg-main" />
+            Collected revenue
           </span>
         </div>
       </div>
 
-      <div className="mt-8 grid min-h-72 gap-4 rounded-2xl bg-mainSoft/35 px-4 pb-5 pt-8 sm:grid-cols-7">
-        {flowPoints.map(([label, amount, sales, profit]) => (
+      <div className="sales-flow-grid mt-8 grid min-h-72 gap-3 rounded-2xl px-4 pb-5 pt-8 sm:grid-cols-7">
+        {flowPoints.map(([label, amount, sales]) => (
           <div key={label} className="flex min-w-0 flex-col items-center justify-end gap-3">
-            <div className="flex h-44 w-full items-end justify-center gap-2">
+            <div className="flex h-44 w-full items-end justify-center">
               <div
-                className="w-5 rounded-t-full bg-cyan-400 shadow-lg shadow-cyan-200"
+                className="sales-flow-bar group relative w-8 rounded-t-lg"
                 style={{ height: `${sales}%` }}
-              />
-              <div
-                className="w-5 rounded-t-full bg-emerald-400 shadow-lg shadow-emerald-200"
-                style={{ height: `${profit}%` }}
-              />
+              >
+                <span className="sales-flow-value absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-bold opacity-0 transition group-hover:opacity-100">{amount}</span>
+              </div>
             </div>
             <div className="text-center">
               <p className="text-xs font-black text-slate-500">{label}</p>
@@ -488,16 +454,16 @@ function PieChartPanel({ title, subtitle, data, gradient, centerLabel }) {
 function TopProductsTable({ rows }) {
   return (
     <section className="overflow-hidden rounded-[24px] border border-neutral-200 bg-white shadow-lg shadow-main/5">
-      <div className="border-b border-neutral-100 px-6 py-5">
+      <div className="data-command-bar border-b px-6 py-5">
         <p className="text-lg font-black text-slate-950">Top Selling Products</p>
         <p className="mt-1 text-sm font-bold text-slate-400">
           Revenue contribution by item
         </p>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] text-left">
+        <table className="data-table w-full min-w-[760px] text-left">
           <thead>
-            <tr className="border-b border-neutral-100 text-xs font-black uppercase tracking-[0.25em] text-slate-300">
+            <tr>
               <th className="px-6 py-5">Product</th>
               <th className="px-5 py-5">Category</th>
               <th className="px-5 py-5 text-center">Sold</th>
@@ -508,7 +474,7 @@ function TopProductsTable({ rows }) {
           <tbody>
             {rows.length ? (
               rows.map(([product, category, sold, revenue, profit]) => (
-                <tr key={product} className="border-b border-neutral-100 last:border-b-0">
+                <tr key={product}>
                   <td className="px-6 py-5 text-sm font-black text-slate-800">{product}</td>
                   <td className="px-5 py-5 text-sm font-bold text-slate-500">{category}</td>
                   <td className="px-5 py-5 text-center text-sm font-black text-main">{sold}</td>
@@ -533,16 +499,16 @@ function TopProductsTable({ rows }) {
 function RecentSalesTable({ rows }) {
   return (
     <section className="overflow-hidden rounded-[24px] border border-neutral-200 bg-white shadow-lg shadow-main/5">
-      <div className="border-b border-neutral-100 px-6 py-5">
+      <div className="data-command-bar border-b px-6 py-5">
         <p className="text-lg font-black text-slate-950">Orders in Range</p>
         <p className="mt-1 text-sm font-bold text-slate-400">
           Backend orders included in this report period
         </p>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[920px] text-left">
+        <table className="data-table w-full min-w-[920px] text-left">
           <thead>
-            <tr className="border-b border-neutral-100 text-xs font-black uppercase tracking-[0.25em] text-slate-300">
+            <tr>
               <th className="px-6 py-5">Order ID</th>
               <th className="px-5 py-5">Customer</th>
               <th className="px-5 py-5">Date</th>
@@ -555,7 +521,7 @@ function RecentSalesTable({ rows }) {
           <tbody>
             {rows.length ? (
               rows.map(([id, customer, date, method, payment, status, total]) => (
-                <tr key={id} className="border-b border-neutral-100 last:border-b-0">
+                <tr key={id}>
                   <td className="px-6 py-5 text-sm font-black text-main">{id}</td>
                   <td className="px-5 py-5 text-sm font-black text-slate-700">{customer}</td>
                   <td className="px-5 py-5 text-sm font-bold text-slate-500">{date}</td>

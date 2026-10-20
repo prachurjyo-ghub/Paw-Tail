@@ -344,13 +344,13 @@ export default function PromoDealsPage() {
       ) : (
         <>
           <div className="mt-5 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-[24px] bg-gradient-to-br from-main to-main/70 p-5 text-white">
+            <div className="promo-summary-primary rounded-[24px] p-5">
               <p className="text-xs font-black uppercase tracking-[0.22em] text-white/70">
                 Active cards
               </p>
               <p className="mt-3 text-3xl font-black">{activeCount}/2</p>
             </div>
-            <div className="rounded-[24px] bg-gradient-to-br from-accent to-accentSoft p-5 text-white sm:col-span-2">
+            <div className="promo-summary-accent rounded-[24px] p-5 sm:col-span-2">
               <p className="text-xs font-black uppercase tracking-[0.22em] text-white/70">
                 Desk codes preview
               </p>

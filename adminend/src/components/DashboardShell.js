@@ -6,6 +6,7 @@ import { useAdminAuth } from "@/components/AuthGate";
 import LogoutButton from "@/components/LogoutButton";
 import BrandLogo from "@/components/BrandLogo";
 import AdminGlobalSearch from "@/components/AdminGlobalSearch";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const navGroups = [
   {
@@ -268,10 +269,10 @@ export function Icon({ name, className = "h-5 w-5" }) {
 
 export function Badge({ children, tone }) {
   const tones = {
-    green: "bg-emerald-100 text-emerald-700",
-    yellow: "bg-amber-100 text-amber-700",
-    gray: "bg-slate-100 text-slate-600",
-    blue: "bg-mainSoft text-main",
+    green: "admin-badge-green",
+    yellow: "admin-badge-yellow",
+    gray: "admin-badge-gray",
+    blue: "admin-badge-blue",
   };
 
   return (
@@ -287,27 +288,27 @@ function Sidebar({ activeItem, collapsed }) {
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-[#e4ece7] bg-white transition-[width] duration-200 lg:flex ${
+      className={`admin-sidebar fixed inset-y-0 left-0 z-30 hidden flex-col border-r transition-[width] duration-200 lg:flex ${
         collapsed ? "w-[60px]" : "w-[210px]"
       }`}
     >
-      <div className={`flex h-14 shrink-0 items-center border-b border-[#e4ece7] ${collapsed ? "justify-center px-2" : "px-3.5"}`}>
+      <div className={`admin-sidebar-brand flex h-14 shrink-0 items-center border-b ${collapsed ? "justify-center px-2" : "px-3.5"}`}>
         <BrandLogo size="xs" showText={!collapsed} className={collapsed ? "gap-0" : "gap-2.5"} />
       </div>
 
       <nav className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-1.5 pt-1 admin-desktop-nav">
         {navGroups.filter((group) => group.items.length > 0).map((group) => (
           <div key={group.title} className="mb-0.5">
-            <p className={`px-2 pb-1 pt-3 text-[10.5px] font-bold uppercase tracking-[0.13em] text-[#8a9e96] ${collapsed ? "sr-only" : ""}`}>{group.title}</p>
+            <p className={`admin-nav-section px-2 pb-1 pt-3 text-[10.5px] font-bold uppercase tracking-[0.13em] ${collapsed ? "sr-only" : ""}`}>{group.title}</p>
             <div>
               {group.items.map((item) => {
                 const isActive = item.label === activeItem;
-                const className = `admin-desktop-nav-link relative my-px flex h-9 items-center rounded-lg text-[13px] font-medium transition ${
+                const className = `admin-desktop-nav-link admin-nav-link relative my-px flex h-9 items-center rounded-lg text-[13px] font-medium transition ${
                   collapsed ? "justify-center px-0" : "gap-2.5 px-3"
                 } ${
                   isActive
-                    ? "active bg-[#eef7f2] font-semibold text-[#144336]"
-                    : "text-[#3d554b] hover:bg-[#eef7f2] hover:text-[#144336]"
+                    ? "active font-semibold"
+                    : ""
                 }`;
 
                 if (item.action === "logout") {
@@ -352,15 +353,15 @@ function Sidebar({ activeItem, collapsed }) {
         ))}
       </nav>
 
-      <div className={`shrink-0 border-t border-[#e4ece7] px-2 py-2 ${collapsed ? "flex justify-center" : ""}`}>
+      <div className={`admin-sidebar-profile shrink-0 border-t px-2 py-2 ${collapsed ? "flex justify-center" : ""}`}>
         <Link href="/dashboard/profile" className={`flex items-center ${collapsed ? "justify-center" : "gap-2 px-1"}`}>
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-[#ea7c25] text-[11px] font-bold text-white">
+          <span className="admin-avatar flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-[#ea7c25] text-[11px] font-bold">
             {adminInitials || "A"}
           </span>
           {!collapsed ? (
             <span className="min-w-0 leading-tight">
-              <strong className="block truncate text-[11.5px] font-bold text-[#132b24]">{admin?.name || "Admin"}</strong>
-              <span className="block truncate text-[10.5px] text-[#6b7f78]">{admin?.email || "Administrator"}</span>
+              <strong className="admin-profile-name block truncate text-[11.5px] font-bold">{admin?.name || "Admin"}</strong>
+              <span className="admin-profile-email block truncate text-[10.5px]">{admin?.email || "Administrator"}</span>
             </span>
           ) : null}
         </Link>
@@ -386,24 +387,25 @@ function Topbar({ onToggleSidebar }) {
   const adminInitials = getAdminInitials(admin);
 
   return (
-    <header className="sticky top-0 z-20 flex h-12 items-center gap-2.5 border-b border-[#e4ece7] bg-[#f4f8f5]/90 px-[18px] backdrop-blur-[10px]">
-      <button type="button" onClick={onToggleSidebar} aria-label="Toggle sidebar" className="flex h-[30px] w-[30px] items-center justify-center rounded-[7px] text-[#3d554b] transition hover:bg-[#eef7f2] hover:text-[#144336]">
+    <header className="admin-topbar sticky top-0 z-20 flex h-14 items-center gap-2.5 border-b px-[18px] backdrop-blur-[16px]">
+      <button type="button" onClick={onToggleSidebar} aria-label="Toggle sidebar" className="admin-icon-button flex h-9 w-9 items-center justify-center rounded-xl transition">
         <Icon name="menu" className="h-4 w-4" />
       </button>
 
       <AdminGlobalSearch />
 
       <div className="ml-auto flex items-center gap-1.5">
-        <button type="button" aria-label="Notifications" className="relative flex h-8 w-8 items-center justify-center rounded-[7px] border border-[#e4ece7] bg-white text-[#3d554b] transition hover:bg-[#eef7f2] hover:text-[#144336]">
+        <ThemeToggle compact />
+        <button type="button" aria-label="Notifications" className="admin-icon-button relative flex h-9 w-9 items-center justify-center rounded-xl border transition">
           <Icon name="bell" className="h-4 w-4" />
-          <span className="absolute right-1 top-1 h-[7px] w-[7px] rounded-full border-2 border-white bg-accent" />
+          <span className="admin-notification-dot absolute right-1.5 top-1.5 h-2 w-2 rounded-full border-2 bg-accent" />
         </button>
-        <div className="flex h-8 overflow-hidden rounded-full border border-[#e4ece7] bg-white text-[#3d554b]">
+        <div className="admin-profile-chip flex h-9 overflow-hidden rounded-xl border">
           <Link
             href="/dashboard/profile"
-            className="flex items-center gap-1.5 py-[3px] pl-[3px] pr-2.5 text-[11.5px] font-semibold transition hover:bg-[#eef7f2]"
+            className="flex items-center gap-2 py-[3px] pl-[3px] pr-3 text-[11.5px] font-semibold transition"
           >
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-accent to-[#ea7c25] text-[10.5px] font-bold text-white">
+            <span className="admin-avatar flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-accent to-[#ea7c25] text-[10.5px] font-bold">
               {adminInitials || "A"}
             </span>
             <span>Profile</span>
@@ -427,16 +429,17 @@ function MobileTopbar({ onOpenMenu }) {
   const adminInitials = getAdminInitials(admin);
 
   return (
-    <header className="sticky top-0 z-30 flex h-15 items-center justify-between border-b border-slate-200 bg-white/95 px-3 backdrop-blur lg:hidden">
+    <header className="admin-mobile-topbar sticky top-0 z-30 flex h-15 items-center justify-between border-b px-3 backdrop-blur lg:hidden">
       <BrandLogo size="sm" />
       <div className="flex items-center gap-2">
+        <ThemeToggle compact />
         <button
           type="button"
           aria-label="Notifications"
-          className="relative flex h-10 w-10 items-center justify-center rounded-xl text-main"
+          className="admin-icon-button relative flex h-10 w-10 items-center justify-center rounded-xl"
         >
           <Icon name="bell" className="h-5 w-5" />
-          <span className="absolute right-1.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-black text-white">
+          <span className="admin-accent-label absolute right-1.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-black">
             1
           </span>
         </button>
@@ -451,7 +454,7 @@ function MobileTopbar({ onOpenMenu }) {
           type="button"
           onClick={onOpenMenu}
           aria-label="Open admin menu"
-          className="flex h-10 w-10 items-center justify-center rounded-xl text-main"
+          className="admin-icon-button flex h-10 w-10 items-center justify-center rounded-xl"
         >
           <Icon name="menu" className="h-6 w-6" />
         </button>
@@ -467,7 +470,7 @@ function MobileBottomNavigation({ activeItem, menuOpen, onOpenMenu }) {
   return (
     <nav
       aria-label="Primary admin navigation"
-      className="fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-5 border-t border-slate-200 bg-white/95 px-1 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(23,63,49,0.08)] backdrop-blur lg:hidden"
+      className="admin-mobile-bottom fixed inset-x-0 bottom-0 z-40 grid h-16 grid-cols-5 border-t px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
     >
       {mobilePrimaryItems.map((item) => {
         const isActive = activeItem === item.activeLabel && !menuOpen;
@@ -476,7 +479,7 @@ function MobileBottomNavigation({ activeItem, menuOpen, onOpenMenu }) {
             key={item.label}
             href={item.href}
             className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-black transition ${
-              isActive ? "bg-mainSoft text-main" : "text-slate-500"
+              isActive ? "is-active bg-mainSoft text-main" : ""
             }`}
           >
             <Icon name={item.icon} className="h-5 w-5" />
@@ -490,7 +493,7 @@ function MobileBottomNavigation({ activeItem, menuOpen, onOpenMenu }) {
         aria-expanded={menuOpen}
         aria-controls="mobile-admin-menu"
         className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-black transition ${
-          moreIsActive ? "bg-mainSoft text-main" : "text-slate-500"
+          moreIsActive ? "is-active bg-mainSoft text-main" : ""
         }`}
       >
         <Icon name="menu" className="h-5 w-5" />
@@ -528,9 +531,9 @@ function MobileMenu({ activeItem, open, onClose }) {
         aria-modal="true"
         aria-labelledby="mobile-menu-title"
         onClick={(event) => event.stopPropagation()}
-        className="absolute inset-y-0 left-0 flex w-[70vw] flex-col border-r border-slate-200 bg-white shadow-2xl"
+        className="admin-mobile-drawer absolute inset-y-0 left-0 flex w-[70vw] flex-col border-r shadow-2xl"
       >
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 px-3">
+        <div className="flex h-14 shrink-0 items-center justify-between border-b px-3">
           <div id="mobile-menu-title"><BrandLogo size="sm" /></div>
           <button
             type="button"
@@ -549,7 +552,7 @@ function MobileMenu({ activeItem, open, onClose }) {
           {navGroups.flatMap((group) => group.items).map((item) => {
             const isActive = activeItem === item.label;
             const itemClassName = `flex min-h-0 w-full items-center gap-2 rounded-lg px-2.5 text-left text-[11px] font-extrabold leading-none transition ${
-              isActive ? "bg-mainSoft text-main" : "text-slate-600 active:bg-slate-100"
+              isActive ? "is-active bg-mainSoft text-main" : ""
             }`;
 
             if (item.action === "logout") {
@@ -581,9 +584,9 @@ function DesktopPawBackground() {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-0 hidden overflow-hidden lg:block" aria-hidden="true">
-      <svg className="absolute right-[60px] top-10 h-40 w-40 -rotate-[18deg] fill-[#1a5744] opacity-[0.03]" viewBox="0 0 100 100"><path d={pawPath} /></svg>
-      <svg className="absolute bottom-20 left-60 h-[120px] w-[120px] rotate-[22deg] fill-accent opacity-[0.03]" viewBox="0 0 100 100"><path d={pawPath} /></svg>
-      <svg className="absolute right-[28%] top-[45%] h-20 w-20 rotate-45 fill-[#1f6b53] opacity-[0.025]" viewBox="0 0 100 100"><path d={pawPath} /></svg>
+      <svg className="admin-paw-mark absolute right-[60px] top-10 h-40 w-40 -rotate-[18deg]" viewBox="0 0 100 100"><path d={pawPath} /></svg>
+      <svg className="admin-paw-mark is-accent absolute bottom-20 left-60 h-[120px] w-[120px] rotate-[22deg]" viewBox="0 0 100 100"><path d={pawPath} /></svg>
+      <svg className="admin-paw-mark absolute right-[28%] top-[45%] h-20 w-20 rotate-45" viewBox="0 0 100 100"><path d={pawPath} /></svg>
     </div>
   );
 }
@@ -594,7 +597,7 @@ export default function DashboardShell({ activeItem, children, notice }) {
   const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
 
   return (
-    <main className="admin-shell min-h-screen bg-[#f4f8f5] text-[#132b24]">
+    <main className="admin-shell min-h-screen">
       <DesktopPawBackground />
       <div className="relative z-[1] flex min-h-screen">
         <Sidebar activeItem={activeItem} collapsed={desktopSidebarCollapsed} />
@@ -608,11 +611,11 @@ export default function DashboardShell({ activeItem, children, notice }) {
             </div>
           ) : null}
           <section className="admin-content flex-1 px-3 pb-24 pt-4 md:px-5 md:py-6 lg:px-[18px] lg:py-3.5">{children}</section>
-          <footer className="hidden border-t border-[#e4ece7] px-[18px] py-3 text-[10.5px] font-medium text-[#6b7f78] lg:flex lg:items-center lg:justify-between">
+          <footer className="admin-footer hidden border-t px-[18px] py-3 text-[10.5px] font-medium lg:flex lg:items-center lg:justify-between">
             <p>Powered by PawTail · Copyright © 2026 Paw Tail. All rights reserved.</p>
             <div className="flex gap-2.5">
-              <a href="#" className="hover:text-[#144336]">Terms</a>
-              <a href="#" className="hover:text-[#144336]">Policy</a>
+              <a href="#">Terms</a>
+              <a href="#">Policy</a>
             </div>
           </footer>
         </div>

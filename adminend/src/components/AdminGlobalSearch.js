@@ -114,7 +114,7 @@ export default function AdminGlobalSearch() {
 
   return (
     <div ref={rootRef} className="relative w-full max-w-[500px]">
-      <label className="flex h-8 items-center rounded-[7px] border border-[#e4ece7] bg-white px-2.5 text-[#6b7f78] transition focus-within:border-[#2a8567] focus-within:ring-3 focus-within:ring-[#2a8567]/10">
+      <label className="admin-global-search flex h-9 items-center rounded-xl border px-3 transition">
         <svg className="h-[15px] w-[15px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="11" cy="11" r="7" />
           <path d="m20 20-3.5-3.5" />
@@ -129,14 +129,14 @@ export default function AdminGlobalSearch() {
           }}
           aria-label="Search orders, products, and customers"
           placeholder="Search orders, products, customers…"
-          className="ml-2 min-w-0 flex-1 bg-transparent text-[12.5px] font-medium text-[#132b24] outline-none placeholder:text-[#8a9e96]"
+          className="ml-2 min-w-0 flex-1 bg-transparent text-[12.5px] font-medium outline-none"
         />
       </label>
 
       {showResults ? (
-        <div className="absolute left-0 right-0 top-10 z-50 overflow-hidden rounded-[10px] border border-[#e4ece7] bg-white shadow-[0_10px_30px_rgba(15,46,38,.14)]">
+        <div className="admin-search-results absolute left-0 right-0 top-11 z-50 overflow-hidden rounded-2xl border shadow-2xl">
           {loading ? (
-            <p className="px-4 py-5 text-center text-xs font-semibold text-[#6b7f78]">Searching…</p>
+            <p className="px-4 py-5 text-center text-xs font-semibold text-slate-500">Searching…</p>
           ) : results.length ? (
             <div className="max-h-[360px] overflow-y-auto p-1.5">
               {results.map((result) => (
@@ -147,18 +147,18 @@ export default function AdminGlobalSearch() {
                     setOpen(false);
                     setQuery("");
                   }}
-                  className="flex items-center gap-3 rounded-[7px] px-3 py-2.5 transition hover:bg-[#eef7f2]"
+                  className="admin-search-result flex items-center gap-3 rounded-xl px-3 py-2.5 transition"
                 >
-                  <span className="w-14 shrink-0 text-[9.5px] font-bold uppercase tracking-[0.08em] text-[#8a9e96]">{result.type}</span>
+                  <span className="w-14 shrink-0 text-[9.5px] font-bold uppercase tracking-[0.08em] text-slate-400">{result.type}</span>
                   <span className="min-w-0">
-                    <strong className="block truncate text-xs font-semibold text-[#132b24]">{result.title}</strong>
-                    <span className="mt-0.5 block truncate text-[10.5px] text-[#6b7f78]">{result.detail}</span>
+                    <strong className="block truncate text-xs font-semibold text-slate-800">{result.title}</strong>
+                    <span className="mt-0.5 block truncate text-[10.5px] text-slate-500">{result.detail}</span>
                   </span>
                 </Link>
               ))}
             </div>
           ) : (
-            <p className="px-4 py-5 text-center text-xs font-semibold text-[#6b7f78]">No matching orders, products, or customers.</p>
+            <p className="px-4 py-5 text-center text-xs font-semibold text-slate-500">No matching orders, products, or customers.</p>
           )}
         </div>
       ) : null}
