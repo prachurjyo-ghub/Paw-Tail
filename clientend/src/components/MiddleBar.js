@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -12,7 +13,6 @@ import {
 } from "react-icons/hi2";
 
 import { useCart } from "@/components/CartProvider";
-import PawPrintIcon from "@/components/icons/PawPrintIcon";
 import Container from "@/components/Container";
 import ForgotPasswordPopover from "@/components/ForgotPasswordPopover";
 import LoginPopover from "@/components/LoginPopover";
@@ -83,18 +83,31 @@ export default function MiddleBar() {
                 onClick={handleHomeClick}
                 className="flex items-center gap-2 text-main shrink-0"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accentSoft text-base">
-                  <PawPrintIcon className="text-main" />
-                </span>
+                <Image
+                  src="/brand/pawtail-logo.png"
+                  alt="PawTail logo"
+                  width={36}
+                  height={36}
+                  className="h-9 w-9 object-contain"
+                  priority
+                />
                 <div className="leading-none">
                   <span className="text-lg font-black tracking-[-0.04em] text-main">Paw</span>
                   <span className="text-lg font-black tracking-[-0.04em] text-accent">Tail</span>
                 </div>
               </Link>
-              <form className="group flex h-9 min-w-0 flex-1 items-center rounded-full border border-neutral-200 bg-white pl-3 shadow-[0_8px_30px_rgba(23,63,49,0.08)] transition-all duration-300 focus-within:border-main">
+              <form
+                action="/search"
+                method="get"
+                className="group flex h-9 min-w-0 flex-1 items-center rounded-full border border-neutral-200 bg-white pl-3 shadow-[0_8px_30px_rgba(23,63,49,0.08)] transition-all duration-300 focus-within:border-main"
+              >
                 <input
                   type="text"
+                  name="q"
                   placeholder="Search..."
+                  required
+                  maxLength={80}
+                  aria-label="Search products"
                   className="h-full min-w-0 flex-1 bg-transparent text-xs text-neutral-700 outline-none placeholder:text-neutral-400"
                 />
                 <button
@@ -133,9 +146,14 @@ export default function MiddleBar() {
               onClick={handleHomeClick}
               className="hidden lg:flex items-center gap-3 text-main"
             >
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accentSoft text-xl">
-                <PawPrintIcon className="text-main" />
-              </span>
+              <Image
+                src="/brand/pawtail-logo.png"
+                alt="PawTail logo"
+                width={48}
+                height={48}
+                className="h-12 w-12 object-contain"
+                priority
+              />
               <div className="leading-none">
                 <span className="text-[2rem] font-black tracking-[-0.04em] text-main">
                   Paw
@@ -148,14 +166,23 @@ export default function MiddleBar() {
 
             <div className="flex flex-1 flex-col gap-3 lg:mx-8 lg:max-w-4xl lg:flex-row lg:items-center">
               {/* Desktop Search */}
-              <form className="group hidden lg:flex flex-1 items-center rounded-full border border-neutral-200 bg-white pl-5 shadow-[0_8px_30px_rgba(23,63,49,0.08)] transition-all duration-300 focus-within:border-main">
+              <form
+                action="/search"
+                method="get"
+                className="group hidden lg:flex flex-1 items-center rounded-full border border-neutral-200 bg-white pl-5 shadow-[0_8px_30px_rgba(23,63,49,0.08)] transition-all duration-300 focus-within:border-main"
+              >
                 <input
                   type="text"
+                  name="q"
                   placeholder="Search food, toys, litter, fish care, flea treatment..."
+                  required
+                  maxLength={80}
+                  aria-label="Search products"
                   className="h-14 flex-1 bg-transparent text-[15px] text-neutral-700 outline-none placeholder:text-neutral-400"
                 />
                 <button
                   type="submit"
+                  aria-label="Submit product search"
                   className="mr-2 flex h-10 w-10 items-center justify-center rounded-full bg-accent text-white transition-transform duration-300 group-hover:scale-105"
                 >
                   <HiOutlineMagnifyingGlass className="text-lg" />

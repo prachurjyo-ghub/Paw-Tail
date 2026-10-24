@@ -188,7 +188,15 @@ const getProducts = async (req, res, next) => {
     };
 
     if (search) {
-      query.name = { $regex: search.trim(), $options: "i" };
+      const searchPattern = escapeRegex(search.trim());
+      if (searchPattern) {
+        const searchExpression = { $regex: searchPattern, $options: "i" };
+        query.$or = [
+          { name: searchExpression },
+          { description: searchExpression },
+          { tags: searchExpression },
+        ];
+      }
     }
 
     if (category) {

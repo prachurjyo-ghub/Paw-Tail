@@ -170,7 +170,7 @@ export default function ProductCard({ product }) {
                   <s className="text-[12.5px] font-semibold text-[#9aa59f]">
                     {formatPrice(oldPrice)}
                   </s>
-                  <span className="text-[11px] font-extrabold text-[#c0392b]">
+                  <span className="text-[16px] font-extrabold tracking-[-0.03em] text-[#c0392b]">
                     -{Math.round(((oldPrice - displayPrice) / oldPrice) * 100)}%
                   </span>
                 </>

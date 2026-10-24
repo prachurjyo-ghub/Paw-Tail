@@ -19,9 +19,9 @@ module.exports = {
       },
       keyframes: {
         marquee: {
-          // Left → right: start one track-width left, slide back to origin.
-          "0%": { transform: "translateX(-50%)" },
-          "100%": { transform: "translateX(0%)" },
+          // Right → left: slide one duplicated track-width for a seamless loop.
+          "0%": { transform: "translateX(0%)" },
+          "100%": { transform: "translateX(-50%)" },
         },
       },
       animation: {

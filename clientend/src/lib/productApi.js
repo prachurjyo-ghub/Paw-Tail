@@ -90,6 +90,7 @@ export function mapProductForListingCard(product) {
 }
 
 export async function getProductsFromApi({
+  search,
   brand,
   category,
   animal,
@@ -105,6 +106,7 @@ export async function getProductsFromApi({
       sort,
     });
 
+    if (search) params.set("search", search);
     if (brand) params.set("brand", brand);
     if (category) params.set("category", category);
     if (animal) params.set("animal", animal);
