@@ -54,7 +54,7 @@ export default function InquiriesPage() {
   }, [q, selectedId, showToast, statusFilter, topicFilter]);
 
   useEffect(() => {
-    loadInquiries();
+    queueMicrotask(loadInquiries);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -1,14 +1,16 @@
-const { randomBytes } = require("crypto");
+const { createHash, randomBytes } = require("crypto");
 
 const mongoose = require("mongoose");
 
 const Order = require("../../models/Order");
 const PromoCode = require("../../models/PromoCode");
+const PromoRedemption = require("../../models/PromoRedemption");
 const {
   getDeliveryCharge,
   getDeliveryZoneSettings,
 } = require("../../services/deliveryZoneService");
 const { getMediaUrl } = require("../../models/media");
+const { invalidateProduct } = require("../../services/productCache");
 
 const sendSuccess = (res, statusCode, message, data) => {
   return res.status(statusCode).json({
@@ -266,9 +268,9 @@ const restoreStockForOrder = async ({ order, session }) => {
 };
 
 const reduceStockForItems = async ({ productsById, items, session }) => {
+  const Product = getProductModel();
   const requestedQuantityMap = getRequestedQuantityMap(items);
   const processedStockKeys = new Set();
-  const productsToSave = new Set();
 
   for (const item of items) {
     const stockKey = getStockKey(item);
@@ -278,24 +280,84 @@ const reduceStockForItems = async ({ productsById, items, session }) => {
     }
 
     const product = productsById.get(item.productId);
-    const variant = findVariant(product, item.variantId);
     const quantity = requestedQuantityMap.get(stockKey);
+    let result;
 
     if (item.variantId) {
-      reduceVariantStock(variant, quantity);
-      syncProductStockFromVariants(product);
+      result = await Product.updateOne(
+        {
+          _id: product._id,
+          isActive: true,
+          isDeleted: { $ne: true },
+          variants: {
+            $elemMatch: {
+              _id: toObjectId(item.variantId),
+              isActive: { $ne: false },
+              stockQuantity: { $gte: quantity },
+            },
+          },
+        },
+        { $inc: { "variants.$[variant].stockQuantity": -quantity } },
+        {
+          arrayFilters: [{ "variant._id": toObjectId(item.variantId) }],
+          session,
+        }
+      );
     } else {
-      reduceProductStock(product, quantity);
-      syncProductStockFromVariants(product);
+      result = await Product.updateOne(
+        {
+          _id: product._id,
+          isActive: true,
+          isDeleted: { $ne: true },
+          stockQuantity: { $gte: quantity },
+        },
+        { $inc: { stockQuantity: -quantity } },
+        { session }
+      );
     }
 
-    processedStockKeys.add(stockKey);
-    productsToSave.add(product);
-  }
+    if (result.modifiedCount !== 1) {
+      throw createHttpError(409, "Insufficient product stock");
+    }
 
-  await Promise.all(
-    [...productsToSave].map((product) => product.save({ session }))
-  );
+    await Product.updateOne(
+      { _id: product._id },
+      [
+        {
+          $set: {
+            isOutOfStock: {
+              $lte: [
+                {
+                  $add: [
+                    { $ifNull: ["$stockQuantity", 0] },
+                    {
+                      $sum: {
+                        $map: {
+                          input: { $ifNull: ["$variants", []] },
+                          as: "variant",
+                          in: {
+                            $cond: [
+                              { $ne: ["$$variant.isActive", false] },
+                              { $ifNull: ["$$variant.stockQuantity", 0] },
+                              0,
+                            ],
+                          },
+                        },
+                      },
+                    },
+                  ],
+                },
+                0,
+              ],
+            },
+          },
+        },
+      ],
+      { session }
+    );
+
+    processedStockKeys.add(stockKey);
+  }
 };
 
 const generateOrderNumber = async (session) => {
@@ -322,12 +384,16 @@ const userHasPreviousOrders = async ({ userId, session }) => {
   return Boolean(order);
 };
 
-const getUserUsageCount = (promoCode, userId) => {
-  const usage = (promoCode.usageRecords || []).find(
+const getUserUsageCount = async (promoCode, userId, session) => {
+  const redemption = await PromoRedemption.findOne({ promo: promoCode._id, user: userId })
+    .select("count")
+    .session(session)
+    .lean();
+  if (redemption) return redemption.count;
+  const legacyUsage = (promoCode.usageRecords || []).find(
     (record) => record.user?.toString() === userId.toString()
   );
-
-  return usage?.count || 0;
+  return legacyUsage?.count || 0;
 };
 
 const validatePromoScope = ({ promo, orderItems, user }) => {
@@ -397,9 +463,11 @@ const calculatePromoDiscount = async ({ promoCode, subtotal, orderItems, user, s
     throw createHttpError(400, "Promo code usage limit reached");
   }
 
-  if (getUserUsageCount(promo, user._id) >= promo.usageLimitPerUser) {
+  const userUsageCount = await getUserUsageCount(promo, user._id, session);
+  if (userUsageCount >= promo.usageLimitPerUser) {
     throw createHttpError(400, "You have reached the usage limit for this promo code");
   }
+  promo.$locals.userUsageCount = userUsageCount;
 
   if (
     promo.scope?.type === "new-users" &&
@@ -432,23 +500,33 @@ const recordPromoUsage = async ({ promo, userId, session }) => {
     return;
   }
 
-  const usage = (promo.usageRecords || []).find((record) =>
-    idsMatch(record.user, userId)
+  const globalResult = await PromoCode.updateOne(
+    {
+      _id: promo._id,
+      isActive: true,
+      ...(promo.totalUsageLimit ? { usageCount: { $lt: promo.totalUsageLimit } } : {}),
+    },
+    { $inc: { usageCount: 1 } },
+    { session }
   );
-
-  if (usage) {
-    usage.count += 1;
-    usage.lastUsedAt = new Date();
-  } else {
-    promo.usageRecords.push({
-      user: userId,
-      count: 1,
-      lastUsedAt: new Date(),
-    });
+  if (globalResult.modifiedCount !== 1) {
+    throw createHttpError(409, "Promo code usage limit reached");
   }
 
-  promo.usageCount += 1;
-  await promo.save({ session });
+  const now = new Date();
+  const userResult = await PromoRedemption.updateOne(
+    { promo: promo._id, user: userId, count: { $lt: promo.usageLimitPerUser } },
+    { $inc: { count: 1 }, $set: { lastUsedAt: now } },
+    { session }
+  );
+  if (userResult.modifiedCount === 1) return;
+
+  const existing = await PromoRedemption.exists({ promo: promo._id, user: userId }).session(session);
+  if (existing) throw createHttpError(409, "Promo code usage limit reached");
+  await PromoRedemption.create(
+    [{ promo: promo._id, user: userId, count: (promo.$locals.userUsageCount || 0) + 1, lastUsedAt: now }],
+    { session }
+  );
 };
 
 const createOrder = async (req, res, next) => {
@@ -457,9 +535,27 @@ const createOrder = async (req, res, next) => {
   }
 
   const session = await mongoose.startSession();
+  const idempotencyHash = createHash("sha256")
+    .update(JSON.stringify(req.validatedOrder))
+    .digest("hex");
 
   try {
     session.startTransaction();
+
+    const existingOrder = await Order.findOne({
+      user: req.user._id,
+      idempotencyKey: req.idempotencyKey,
+    })
+      .select("+idempotencyHash")
+      .session(session);
+    if (existingOrder) {
+      await session.abortTransaction();
+      if (existingOrder.idempotencyHash !== idempotencyHash) {
+        return sendError(res, 409, "Idempotency key was already used for another request");
+      }
+      existingOrder.idempotencyHash = undefined;
+      return sendSuccess(res, 200, "Order already created", { order: existingOrder });
+    }
 
     const Product = getProductModel();
     const { items, promoCode, paymentMethod, shippingAddress, deliveryZone } =
@@ -571,6 +667,8 @@ const createOrder = async (req, res, next) => {
       [
         {
           orderNumber,
+          idempotencyKey: req.idempotencyKey,
+          idempotencyHash,
           user: req.user._id,
           userInfo: {
             name: shippingAddress.name,
@@ -600,6 +698,7 @@ const createOrder = async (req, res, next) => {
     });
     await reduceStockForItems({ productsById, items, session });
     await session.commitTransaction();
+    await invalidateProduct(...products.map((product) => product.slug));
 
     return sendSuccess(res, 201, "Order created successfully", {
       order,
@@ -608,6 +707,19 @@ const createOrder = async (req, res, next) => {
   } catch (error) {
     if (session.inTransaction()) {
       await session.abortTransaction();
+    }
+
+    if (error?.code === 11000 && req.idempotencyKey) {
+      const existingOrder = await Order.findOne({
+        user: req.user._id,
+        idempotencyKey: req.idempotencyKey,
+      }).select("+idempotencyHash");
+      if (existingOrder?.idempotencyHash === idempotencyHash) {
+        existingOrder.idempotencyHash = undefined;
+        return sendSuccess(res, 200, "Order already created", { order: existingOrder });
+      }
+      error.statusCode = 409;
+      error.message = "The order conflicted with another request. Please retry safely.";
     }
 
     error.statusCode = error.statusCode || 500;
@@ -619,9 +731,14 @@ const createOrder = async (req, res, next) => {
 
 const getOrders = async (req, res, next) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 });
+    const page = Math.max(1, Math.floor(Number(req.query.page) || 1));
+    const limit = Math.min(100, Math.max(1, Math.floor(Number(req.query.limit) || 25)));
+    const [orders, total] = await Promise.all([
+      Order.find().sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
+      Order.countDocuments(),
+    ]);
 
-    return sendSuccess(res, 200, "Orders fetched successfully", { orders });
+    return sendSuccess(res, 200, "Orders fetched successfully", { orders, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
   } catch (error) {
     return next(error);
   }
@@ -630,9 +747,14 @@ const getOrders = async (req, res, next) => {
 const getMyOrders = async (req, res, next) => {
   try {
     const filter = req.user?._id ? { user: req.user._id } : {};
-    const orders = await Order.find(filter).sort({ createdAt: -1 });
+    const page = Math.max(1, Math.floor(Number(req.query.page) || 1));
+    const limit = Math.min(50, Math.max(1, Math.floor(Number(req.query.limit) || 20)));
+    const [orders, total] = await Promise.all([
+      Order.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
+      Order.countDocuments(filter),
+    ]);
 
-    return sendSuccess(res, 200, "Orders fetched successfully", { orders });
+    return sendSuccess(res, 200, "Orders fetched successfully", { orders, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
   } catch (error) {
     return next(error);
   }
@@ -706,6 +828,11 @@ const updateOrder = async (req, res, next) => {
 
     await order.save({ session });
     await session.commitTransaction();
+    if (shouldRestoreStock) {
+      const Product = getProductModel();
+      const restoredProducts = await Product.find({ _id: { $in: order.items.map((item) => item.product) } }).select("slug").lean();
+      await invalidateProduct(...restoredProducts.map((product) => product.slug));
+    }
 
     return sendSuccess(res, 200, "Order updated successfully", { order });
   } catch (error) {

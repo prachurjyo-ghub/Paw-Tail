@@ -51,7 +51,7 @@ export default function InvoicesDashboard() {
   };
 
   useEffect(() => {
-    load();
+    queueMicrotask(load);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

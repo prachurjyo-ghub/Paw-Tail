@@ -63,7 +63,7 @@ export default function AccountDetailsDashboard({ accountId }) {
   }, [accountId, showToast]);
 
   useEffect(() => {
-    loadAccount();
+    queueMicrotask(loadAccount);
   }, [loadAccount]);
 
   const totals = useMemo(() => {

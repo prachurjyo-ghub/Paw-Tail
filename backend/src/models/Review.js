@@ -29,15 +29,17 @@ const reviewSchema = new mongoose.Schema(
       type: String,
       default: "",
       trim: true,
+      maxlength: 2000,
     },
     reply: {
       type: String,
       default: "",
       trim: true,
+      maxlength: 2000,
     },
     status: {
       type: String,
-      enum: ["pending", "replied"],
+      enum: ["pending", "approved", "replied"],
       default: "pending",
     },
     isHidden: {
@@ -52,5 +54,6 @@ const reviewSchema = new mongoose.Schema(
 );
 
 reviewSchema.index({ product: 1, isHidden: 1, createdAt: -1 });
+reviewSchema.index({ product: 1, user: 1 }, { unique: true, partialFilterExpression: { user: { $type: "objectId" } } });
 
 module.exports = mongoose.model("Review", reviewSchema);

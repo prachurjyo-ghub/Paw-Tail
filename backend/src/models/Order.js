@@ -152,6 +152,14 @@ const orderSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    idempotencyKey: {
+      type: String,
+      select: false,
+    },
+    idempotencyHash: {
+      type: String,
+      select: false,
+    },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -259,6 +267,10 @@ const orderSchema = new mongoose.Schema(
 );
 
 orderSchema.index({ user: 1 });
+orderSchema.index(
+  { user: 1, idempotencyKey: 1 },
+  { unique: true, partialFilterExpression: { idempotencyKey: { $type: "string" } } }
+);
 orderSchema.index({ orderNumber: 1 }, { unique: true });
 orderSchema.index({ orderStatus: 1 });
 orderSchema.index({ paymentStatus: 1 });

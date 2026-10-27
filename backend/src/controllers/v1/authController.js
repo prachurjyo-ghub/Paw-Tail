@@ -1,4 +1,4 @@
-const { randomInt } = require("crypto");
+const { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } = require("crypto");
 
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -8,8 +8,66 @@ const env = require("../../config/env");
 const createMailTransporter = require("../../config/mail");
 const Order = require("../../models/Order");
 const User = require("../../models/User");
+const Cart = require("../../models/Cart");
+const Inquiry = require("../../models/Inquiry");
+const Review = require("../../models/Review");
 const { mediaService } = require("../../services/mediaService");
 const { cleanupOldMedia } = require("../../utils/media");
+const logger = require("../../utils/logger");
+
+const OTP_TTL_MS = 10 * 60 * 1000;
+const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
+const OTP_MAX_ATTEMPTS = 5;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const DUMMY_PASSWORD_HASH = "$2b$10$3euPcmQFCiblsZeEu5s7p.9Wf2XHX3QYZTHwRs8hG3Nq6M3j6Yw6S";
+
+const normalizeEmail = (value) =>
+  typeof value === "string" ? value.trim().toLowerCase() : "";
+const hashRefreshToken = (token) =>
+  createHash("sha256").update(token).digest("hex");
+const hashOtp = (email, purpose, code) =>
+  createHmac("sha256", env.accessTokenSecret)
+    .update(`${normalizeEmail(email)}:${purpose}:${code}`)
+    .digest("hex");
+const safeEqual = (left, right) => {
+  const a = Buffer.from(String(left || ""));
+  const b = Buffer.from(String(right || ""));
+  return a.length === b.length && timingSafeEqual(a, b);
+};
+const assignOtp = (user, code, purpose) => {
+  user.otp = hashOtp(user.email, purpose, code);
+  user.otpPurpose = purpose;
+  user.otpAttempts = 0;
+  user.otpLastSentAt = new Date();
+  user.otpExpiresAt = new Date(Date.now() + OTP_TTL_MS);
+};
+const clearOtp = (user) => {
+  user.otp = null;
+  user.otpExpiresAt = null;
+  user.otpPurpose = null;
+  user.otpAttempts = 0;
+  user.otpLastSentAt = null;
+};
+const verifyOtp = async (user, code, purpose) => {
+  if (!/^\d{6}$/.test(String(code || ""))) return false;
+  if (!user.otp || !user.otpExpiresAt || user.otpPurpose !== purpose) return false;
+  if (user.otpExpiresAt.getTime() < Date.now() || user.otpAttempts >= OTP_MAX_ATTEMPTS) {
+    clearOtp(user);
+    await user.save();
+    return false;
+  }
+  const valid = safeEqual(user.otp, hashOtp(user.email, purpose, code));
+  if (!valid) {
+    user.otpAttempts += 1;
+    if (user.otpAttempts >= OTP_MAX_ATTEMPTS) clearOtp(user);
+    await user.save();
+  }
+  return valid;
+};
+const canResendOtp = (user) =>
+  !user.otpLastSentAt || Date.now() - user.otpLastSentAt.getTime() >= OTP_RESEND_COOLDOWN_MS;
+const isStrongPassword = (value) =>
+  typeof value === "string" && value.length >= 12 && value.length <= 128;
 
 // Utility functions
 const generateVerificationCode = () => {
@@ -57,7 +115,7 @@ const createAccessToken = (userId) => {
 
 // Refresh token generation function
 const createRefreshToken = (userId) => {
-  return jwt.sign({ id: userId }, env.refreshTokenSecret, {
+  return jwt.sign({ id: userId, jti: randomBytes(16).toString("hex") }, env.refreshTokenSecret, {
     expiresIn: env.refreshTokenExpiresIn,
   });
 };
@@ -121,7 +179,7 @@ const handleAuthResponse = async (res, user, statusCode, message) => {
   const accessToken = createAccessToken(user._id);
   const refreshToken = createRefreshToken(user._id);
 
-  user.refreshToken = refreshToken;
+  user.refreshToken = hashRefreshToken(refreshToken);
   await user.save();
 
   res.cookie(
@@ -157,75 +215,83 @@ const handleAuthResponse = async (res, user, statusCode, message) => {
 const signup = async (req, res, next) => {
   try {
     const { name, email, phone, password } = req.body;
+    const normalizedEmail = normalizeEmail(email);
 
-    if (!name || !email || !password || !phone) {
+    if (
+      typeof name !== "string" || name.trim().length < 2 || name.trim().length > 100 ||
+      !EMAIL_PATTERN.test(normalizedEmail) ||
+      typeof phone !== "string" || phone.trim().length < 7 || phone.trim().length > 30 ||
+      !isStrongPassword(password)
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Name, email, phone, and password are required",
+        message: "Provide a valid name, email, phone, and password of 12-128 characters",
       });
     }
 
-    const normalizedEmail = email.toLowerCase();
     const existingUser = await User.findOne({ email: normalizedEmail });
     const verificationCode = generateVerificationCode();
-    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     if (existingUser) {
       if (existingUser.isVerified) {
-        return res.status(400).json({
-          success: false,
-          message: "User already exists",
+        return res.status(200).json({
+          success: true,
+          requiresVerification: true,
+          email: normalizedEmail,
+          message: "If the account can be registered, a verification email will be sent",
         });
       }
 
-      existingUser.name = name;
-      existingUser.phone = phone;
+      if (!canResendOtp(existingUser)) {
+        return res.status(429).json({ success: false, message: "Please wait before requesting another code" });
+      }
+
+      existingUser.name = name.trim();
+      existingUser.phone = phone.trim();
       existingUser.password = await bcrypt.hash(password, 10);
-      existingUser.otp = verificationCode;
-      existingUser.otpExpiresAt = otpExpiresAt;
+      assignOtp(existingUser, verificationCode, "verify-email");
       await existingUser.save();
 
       try {
         await sendVerificationEmail(existingUser.email, verificationCode);
       } catch (mailError) {
-        mailError.statusCode = 502;
-        mailError.message = "Could not send verification email. Please try again.";
-        throw mailError;
+        logger.error("auth.verification_mail_failed", { message: mailError.message });
       }
 
       return res.status(200).json({
         success: true,
         requiresVerification: true,
         email: existingUser.email,
-        message: "Verification code sent to your email",
+        message: "If the account can be registered, a verification email will be sent",
       });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     await User.create({
-      name,
+      name: name.trim(),
       email: normalizedEmail,
-      phone,
+      phone: phone.trim(),
       password: hashedPassword,
       isVerified: false,
-      otp: verificationCode,
-      otpExpiresAt,
+      otp: hashOtp(normalizedEmail, "verify-email", verificationCode),
+      otpPurpose: "verify-email",
+      otpAttempts: 0,
+      otpLastSentAt: new Date(),
+      otpExpiresAt: new Date(Date.now() + OTP_TTL_MS),
     });
 
     try {
       await sendVerificationEmail(normalizedEmail, verificationCode);
     } catch (mailError) {
-      mailError.statusCode = 502;
-      mailError.message = "Could not send verification email. Please try again.";
-      throw mailError;
+      logger.error("auth.verification_mail_failed", { message: mailError.message });
     }
 
-    return res.status(201).json({
+    return res.status(200).json({
       success: true,
       requiresVerification: true,
       email: normalizedEmail,
-      message: "Verification code sent to your email",
+      message: "If the account can be registered, a verification email will be sent",
     });
   } catch (error) {
     next(error);
@@ -237,16 +303,18 @@ const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
+    const normalizedEmail = normalizeEmail(email);
+    if (!EMAIL_PATTERN.test(normalizedEmail) || typeof password !== "string") {
       return res.status(400).json({
         success: false,
         message: "Email and password are required",
       });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
+      await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
       return res.status(401).json({
         success: false,
         message: "Invalid email or password",
@@ -254,9 +322,9 @@ const login = async (req, res, next) => {
     }
 
     if (!user.isVerified) {
-      return res.status(403).json({
+      return res.status(401).json({
         success: false,
-        message: "Please verify your email before logging in",
+        message: "Invalid email or password",
       });
     }
 
@@ -279,39 +347,27 @@ const adminLogin = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
+    const normalizedEmail = normalizeEmail(email);
+    if (!EMAIL_PATTERN.test(normalizedEmail) || typeof password !== "string") {
       return res.status(400).json({
         success: false,
         message: "Email and password are required",
       });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
+      await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
       return res.status(401).json({
         success: false,
         message: "Invalid email or password",
       });
     }
 
-    if (user.role !== "admin") {
-      return res.status(403).json({
-        success: false,
-        message: "Only admins can log in to the admin site",
-      });
-    }
-
-    if (!user.isVerified) {
-      return res.status(403).json({
-        success: false,
-        message: "Please verify your email before logging in",
-      });
-    }
-
     const isPasswordMatched = await bcrypt.compare(password, user.password);
 
-    if (!isPasswordMatched) {
+    if (!isPasswordMatched || user.role !== "admin" || !user.isVerified) {
       return res.status(401).json({
         success: false,
         message: "Invalid email or password",
@@ -327,20 +383,21 @@ const adminLogin = async (req, res, next) => {
 const verifyEmail = async (req, res, next) => {
   try {
     const { email, code } = req.body;
+    const normalizedEmail = normalizeEmail(email);
 
-    if (!email || !code) {
+    if (!EMAIL_PATTERN.test(normalizedEmail) || !/^\d{6}$/.test(String(code || ""))) {
       return res.status(400).json({
         success: false,
         message: "Email and verification code are required",
       });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
-      return res.status(404).json({
+      return res.status(400).json({
         success: false,
-        message: "User not found",
+        message: "Invalid verification code",
       });
     }
 
@@ -351,21 +408,7 @@ const verifyEmail = async (req, res, next) => {
       });
     }
 
-    if (!user.otp || !user.otpExpiresAt) {
-      return res.status(400).json({
-        success: false,
-        message: "No verification code found for this user",
-      });
-    }
-
-    if (user.otpExpiresAt.getTime() < Date.now()) {
-      return res.status(400).json({
-        success: false,
-        message: "Verification code has expired",
-      });
-    }
-
-    if (user.otp !== code) {
+    if (!(await verifyOtp(user, code, "verify-email"))) {
       return res.status(400).json({
         success: false,
         message: "Invalid verification code",
@@ -373,8 +416,7 @@ const verifyEmail = async (req, res, next) => {
     }
 
     user.isVerified = true;
-    user.otp = null;
-    user.otpExpiresAt = null;
+    clearOtp(user);
     await user.save();
 
     return handleAuthResponse(res, user, 200, "Email verified successfully");
@@ -386,42 +428,37 @@ const verifyEmail = async (req, res, next) => {
 const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
+    const normalizedEmail = normalizeEmail(email);
+    const genericResponse = {
+      success: true,
+      message: "If an eligible account exists, a password reset code will be sent",
+    };
 
-    if (!email) {
+    if (!EMAIL_PATTERN.test(normalizedEmail)) {
       return res.status(400).json({
         success: false,
         message: "Email is required",
       });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: normalizedEmail });
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    if (!user.isVerified) {
-      return res.status(403).json({
-        success: false,
-        message: "Please verify your email before resetting your password",
-      });
+    if (!user || !user.isVerified || !canResendOtp(user)) {
+      return res.status(200).json(genericResponse);
     }
 
     const resetCode = generateVerificationCode();
 
-    user.otp = resetCode;
-    user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    assignOtp(user, resetCode, "reset-password");
     await user.save();
 
-    await sendPasswordResetEmail(user.email, resetCode);
+    try {
+      await sendPasswordResetEmail(user.email, resetCode);
+    } catch (mailError) {
+      logger.error("auth.password_reset_mail_failed", { message: mailError.message });
+    }
 
-    return res.status(200).json({
-      success: true,
-      message: "Password reset OTP sent to your email",
-    });
+    return res.status(200).json(genericResponse);
   } catch (error) {
     next(error);
   }
@@ -438,30 +475,17 @@ const verifyResetOtp = async (req, res, next) => {
       });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const normalizedEmail = normalizeEmail(email);
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    if (!user.otp || !user.otpExpiresAt) {
       return res.status(400).json({
         success: false,
-        message: "No password reset OTP found for this user",
+        message: "Invalid password reset OTP",
       });
     }
 
-    if (user.otpExpiresAt.getTime() < Date.now()) {
-      return res.status(400).json({
-        success: false,
-        message: "Password reset OTP has expired",
-      });
-    }
-
-    if (user.otp !== code) {
+    if (!(await verifyOtp(user, code, "reset-password"))) {
       return res.status(400).json({
         success: false,
         message: "Invalid password reset OTP",
@@ -481,37 +505,24 @@ const resetPassword = async (req, res, next) => {
   try {
     const { email, code, newPassword } = req.body;
 
-    if (!email || !code || !newPassword) {
+    const normalizedEmail = normalizeEmail(email);
+    if (!EMAIL_PATTERN.test(normalizedEmail) || !/^\d{6}$/.test(String(code || "")) || !isStrongPassword(newPassword)) {
       return res.status(400).json({
         success: false,
         message: "Email, reset code, and new password are required",
       });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    if (!user.otp || !user.otpExpiresAt) {
       return res.status(400).json({
         success: false,
-        message: "No password reset OTP found for this user",
+        message: "Invalid password reset OTP",
       });
     }
 
-    if (user.otpExpiresAt.getTime() < Date.now()) {
-      return res.status(400).json({
-        success: false,
-        message: "Password reset OTP has expired",
-      });
-    }
-
-    if (user.otp !== code) {
+    if (!(await verifyOtp(user, code, "reset-password"))) {
       return res.status(400).json({
         success: false,
         message: "Invalid password reset OTP",
@@ -519,8 +530,7 @@ const resetPassword = async (req, res, next) => {
     }
 
     user.password = await bcrypt.hash(newPassword, 10);
-    user.otp = null;
-    user.otpExpiresAt = null;
+    clearOtp(user);
     user.refreshToken = null;
     await user.save();
 
@@ -553,9 +563,12 @@ const requestUpdateOtp = async (req, res, next) => {
       });
     }
 
+    if (!canResendOtp(user)) {
+      return res.status(429).json({ success: false, message: "Please wait before requesting another code" });
+    }
+
     const updateCode = generateVerificationCode();
-    user.otp = updateCode;
-    user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    assignOtp(user, updateCode, type);
     await user.save();
 
     await sendAccountUpdateEmail(user.email, updateCode);
@@ -573,7 +586,7 @@ const updatePhone = async (req, res, next) => {
   try {
     const { code, phone } = req.body;
 
-    if (!code || !phone) {
+    if (!/^\d{6}$/.test(String(code || "")) || typeof phone !== "string" || phone.trim().length < 7 || phone.trim().length > 30) {
       return res.status(400).json({
         success: false,
         message: "OTP code and phone are required",
@@ -582,30 +595,15 @@ const updatePhone = async (req, res, next) => {
 
     const user = req.user;
 
-    if (!user.otp || !user.otpExpiresAt) {
-      return res.status(400).json({
-        success: false,
-        message: "No OTP found for this request",
-      });
-    }
-
-    if (user.otpExpiresAt.getTime() < Date.now()) {
-      return res.status(400).json({
-        success: false,
-        message: "OTP has expired",
-      });
-    }
-
-    if (user.otp !== code) {
+    if (!(await verifyOtp(user, code, "phone"))) {
       return res.status(400).json({
         success: false,
         message: "Invalid OTP",
       });
     }
 
-    user.phone = phone;
-    user.otp = null;
-    user.otpExpiresAt = null;
+    user.phone = String(phone).trim();
+    clearOtp(user);
     await user.save();
 
     return res.status(200).json({
@@ -641,21 +639,11 @@ const changePassword = async (req, res, next) => {
 
     const user = req.user;
 
-    if (!user.otp || !user.otpExpiresAt) {
-      return res.status(400).json({
-        success: false,
-        message: "No OTP found for this request",
-      });
+    if (!isStrongPassword(newPassword)) {
+      return res.status(400).json({ success: false, message: "New password must contain 12-128 characters" });
     }
 
-    if (user.otpExpiresAt.getTime() < Date.now()) {
-      return res.status(400).json({
-        success: false,
-        message: "OTP has expired",
-      });
-    }
-
-    if (user.otp !== code) {
+    if (!(await verifyOtp(user, code, "password"))) {
       return res.status(400).json({
         success: false,
         message: "Invalid OTP",
@@ -675,8 +663,7 @@ const changePassword = async (req, res, next) => {
     }
 
     user.password = await bcrypt.hash(newPassword, 10);
-    user.otp = null;
-    user.otpExpiresAt = null;
+    clearOtp(user);
     user.refreshToken = null;
     await user.save();
 
@@ -939,6 +926,7 @@ const setDefaultAddress = async (req, res, next) => {
 };
 
 const deleteAccount = async (req, res, next) => {
+  const session = await mongoose.startSession();
   try {
     const { code } = req.body;
     const user = req.user;
@@ -950,21 +938,7 @@ const deleteAccount = async (req, res, next) => {
       });
     }
 
-    if (!user.otp || !user.otpExpiresAt) {
-      return res.status(400).json({
-        success: false,
-        message: "No OTP found for this request",
-      });
-    }
-
-    if (user.otpExpiresAt.getTime() < Date.now()) {
-      return res.status(400).json({
-        success: false,
-        message: "OTP has expired",
-      });
-    }
-
-    if (user.otp !== code) {
+    if (!(await verifyOtp(user, code, "delete"))) {
       return res.status(400).json({
         success: false,
         message: "Invalid OTP",
@@ -972,7 +946,48 @@ const deleteAccount = async (req, res, next) => {
     }
 
     const profilePic = user.profilePic;
-    await User.deleteOne({ _id: user._id });
+    session.startTransaction();
+    await Promise.all([
+      Cart.deleteMany({ user: user._id }, { session }),
+      Inquiry.deleteMany({ $or: [{ user: user._id }, { email: user.email }] }, { session }),
+      Review.updateMany(
+        { user: user._id },
+        { $set: { user: null, customerName: "Deleted customer" } },
+        { session }
+      ),
+      Order.updateMany(
+        { user: user._id },
+        {
+          $set: {
+            "userInfo.name": "Deleted customer",
+            "userInfo.email": "deleted@invalid.local",
+            "userInfo.phone": "redacted",
+            "shippingAddress.name": "Deleted customer",
+            "shippingAddress.phone": "redacted",
+            "shippingAddress.city": "redacted",
+            "shippingAddress.area": "redacted",
+            "shippingAddress.address": "redacted",
+            "shippingAddress.postalCode": null,
+          },
+        },
+        { session }
+      ),
+    ]);
+
+    user.name = "Deleted customer";
+    user.email = `deleted-${user._id}@invalid.local`;
+    user.phone = null;
+    user.password = await bcrypt.hash(randomBytes(32).toString("hex"), 10);
+    user.profilePic = null;
+    user.address = [];
+    user.wishList = [];
+    user.refreshToken = null;
+    user.isVerified = false;
+    user.isDeleted = true;
+    user.deletedAt = new Date();
+    clearOtp(user);
+    await user.save({ session });
+    await session.commitTransaction();
 
     if (profilePic) {
       await cleanupOldMedia([profilePic], {
@@ -991,7 +1006,10 @@ const deleteAccount = async (req, res, next) => {
       message: "Account deleted successfully",
     });
   } catch (error) {
+    if (session.inTransaction()) await session.abortTransaction();
     next(error);
+  } finally {
+    session.endSession();
   }
 };
 
@@ -1001,7 +1019,7 @@ const logout = async (req, res, next) => {
     const { refreshToken } = req.cookies;
 
     if (refreshToken) {
-      const user = await User.findOne({ refreshToken });
+      const user = await User.findOne({ refreshToken: hashRefreshToken(refreshToken) });
 
       if (user) {
         user.refreshToken = null;
@@ -1043,7 +1061,13 @@ const refreshToken = async (req, res, next) => {
       });
     }
 
-    const user = await User.findOne({ _id: decoded.id, refreshToken: token });
+    const currentTokenHash = hashRefreshToken(token);
+    const nextRefreshToken = createRefreshToken(decoded.id);
+    const user = await User.findOneAndUpdate(
+      { _id: decoded.id, refreshToken: currentTokenHash },
+      { $set: { refreshToken: hashRefreshToken(nextRefreshToken) } },
+      { new: true }
+    );
 
     if (!user) {
       return res.status(401).json({
@@ -1058,6 +1082,11 @@ const refreshToken = async (req, res, next) => {
       "accessToken",
       accessToken,
       cookieOptions(ACCESS_TOKEN_MAX_AGE_MS)
+    );
+    res.cookie(
+      "refreshToken",
+      nextRefreshToken,
+      cookieOptions(REFRESH_TOKEN_MAX_AGE_MS)
     );
 
     return res.status(200).json({
@@ -1081,10 +1110,13 @@ const getCurrentUser = async (req, res) => {
 
 const getAccounts = async (req, res, next) => {
   try {
-    const accounts = await User.find()
+    const page = Math.max(1, Math.floor(Number(req.query.page) || 1));
+    const limit = Math.min(100, Math.max(1, Math.floor(Number(req.query.limit) || 25)));
+    const accountFilter = { isDeleted: { $ne: true } };
+    const [accounts, total] = await Promise.all([User.find(accountFilter)
       .select("name email phone role isVerified profilePic address createdAt updatedAt")
       .sort({ createdAt: -1 })
-      .lean();
+      .skip((page - 1) * limit).limit(limit).lean(), User.countDocuments(accountFilter)]);
 
     return res.status(200).json({
       success: true,
@@ -1101,6 +1133,7 @@ const getAccounts = async (req, res, next) => {
         createdAt: account.createdAt,
         updatedAt: account.updatedAt,
       })),
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
     next(error);

@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const { protect, adminOnly } = require("../../middleware/auth.middleware.js");
+const { protect, adminOnly, optionalAuth } = require("../../middleware/auth.middleware.js");
 const { createImageUpload } = require("../../utils/upload.js");
+const { policies } = require("../../middleware/rateLimit.middleware.js");
 const {
   getBanners,
   postBanner,
@@ -15,11 +16,12 @@ const bannerImageUpload = createImageUpload({
   maxSizeKB: 4096,
 });
 
-router.get("/get-banners", getBanners);
+router.get("/get-banners", policies.browsing, optionalAuth, getBanners);
 router.post(
   "/post-banners",
   protect,
   adminOnly,
+  policies.upload,
   bannerImageUpload.single("image"),
   postBanner
 );
@@ -27,14 +29,16 @@ router.patch(
   "/update-banners/:id",
   protect,
   adminOnly,
+  policies.upload,
   bannerImageUpload.single("image"),
   updateBanner
 );
-router.delete("/delete-banners/:id", protect, adminOnly, deleteBanner);
+router.delete("/delete-banners/:id", protect, adminOnly, policies.admin, deleteBanner);
 router.patch(
   "/active-on-off-banners/:id",
   protect,
   adminOnly,
+  policies.admin,
   toggleBannerActive
 );
 

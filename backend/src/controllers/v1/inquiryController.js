@@ -1,12 +1,13 @@
 const mongoose = require("mongoose");
 
 const Inquiry = require("../../models/Inquiry");
+const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const createInquiry = async (req, res, next) => {
   try {
     const { name, phone, email, pet, topic, message } = req.body;
 
-    if (!name?.trim() || !phone?.trim() || !email?.trim() || !pet?.trim() || !topic || !message?.trim()) {
+    if (!name?.trim() || !phone?.trim() || !email?.trim() || !pet?.trim() || !topic || !message?.trim() || name.length > 100 || phone.length > 30 || email.length > 320 || pet.length > 100 || message.length > 4000) {
       return res.status(400).json({
         success: false,
         message: "Name, phone, email, pet, topic, and message are required",
@@ -52,7 +53,7 @@ const getInquiriesAdmin = async (req, res, next) => {
       filter.topic = req.query.topic;
     }
     if (req.query.q) {
-      const q = String(req.query.q).trim();
+        const q = escapeRegex(String(req.query.q).trim().slice(0, 100));
       if (q) {
         filter.$or = [
           { name: { $regex: q, $options: "i" } },
@@ -63,15 +64,18 @@ const getInquiriesAdmin = async (req, res, next) => {
       }
     }
 
-    const inquiries = await Inquiry.find(filter)
+    const page = Math.max(1, Math.floor(Number(req.query.page) || 1));
+    const limit = Math.min(100, Math.max(1, Math.floor(Number(req.query.limit) || 25)));
+    const [inquiries, total] = await Promise.all([Inquiry.find(filter)
       .populate("user", "name email phone")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit), Inquiry.countDocuments(filter)]);
 
     return res.status(200).json({
       success: true,
       message: "Inquiries fetched successfully",
       inquiries,
       topics: Inquiry.TOPICS,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
     next(error);

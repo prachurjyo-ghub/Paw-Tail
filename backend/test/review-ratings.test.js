@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const Review = require("../src/models/Review");
-const { getRatingMapForProductIds } = require("../src/utils/reviewRatings");
+const { BASELINE, getRatingMapForProductIds } = require("../src/utils/reviewRatings");
 
 test("rating lookup ignores malformed and duplicate product IDs", async () => {
   const originalAggregate = Review.aggregate;
@@ -11,6 +11,7 @@ test("rating lookup ignores malformed and duplicate product IDs", async () => {
   Review.aggregate = async (pipeline) => {
     assert.equal(pipeline[0].$match.product.$in.length, 1);
     assert.equal(String(pipeline[0].$match.product.$in[0]), validId);
+    assert.deepEqual(pipeline[0].$match.status, { $in: ["approved", "replied"] });
     return [];
   };
 
@@ -24,4 +25,8 @@ test("rating lookup ignores malformed and duplicate product IDs", async () => {
   } finally {
     Review.aggregate = originalAggregate;
   }
+});
+
+test("products without approved reviews have an honest zero rating", () => {
+  assert.deepEqual(BASELINE, { averageRating: 0, reviewCount: 0, isBaseline: false });
 });

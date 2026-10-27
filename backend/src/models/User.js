@@ -34,6 +34,15 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
     wishList: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -54,6 +63,20 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
     otpExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    otpPurpose: {
+      type: String,
+      enum: ["verify-email", "reset-password", "phone", "password", "delete", null],
+      default: null,
+    },
+    otpAttempts: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    otpLastSentAt: {
       type: Date,
       default: null,
     },

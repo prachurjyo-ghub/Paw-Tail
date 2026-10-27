@@ -3,10 +3,12 @@ const path = require("path");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const express = require("express");
+const helmet = require("helmet");
 const morgan = require("morgan");
 
 const env = require("./config/env");
 const requestId = require("./middleware/requestId.middleware");
+const createCsrfProtection = require("./middleware/csrf.middleware");
 const { notFound, errorHandler } = require("./middleware/error.middleware");
 const createHealthRouter = require("./routes/healthRoutes");
 const Routes = require("./routes/index.js");
@@ -52,6 +54,7 @@ const isLocalDevOrigin = (origin, isProduction) => {
 
 const createApp = ({ config = env, state = runtimeState } = {}) => {
   const app = express();
+  app.set("trust proxy", config.trustProxyHops);
   const allowedOrigins = [
     ...new Set([
       config.adminUrl,
@@ -61,6 +64,7 @@ const createApp = ({ config = env, state = runtimeState } = {}) => {
   ];
 
   app.use(requestId);
+  app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
   app.use(
     cors({
       origin(origin, callback) {
@@ -76,6 +80,7 @@ const createApp = ({ config = env, state = runtimeState } = {}) => {
       credentials: true,
     })
   );
+  app.use(createCsrfProtection(config));
   app.use(morgan(config.isProduction ? "combined" : "dev"));
   app.use(cookieParser());
   app.use(express.json({ limit: JSON_BODY_LIMIT }));

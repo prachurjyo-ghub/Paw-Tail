@@ -273,7 +273,7 @@ export default function BannersPage() {
   }, [showToast]);
 
   useEffect(() => {
-    loadBanners();
+    queueMicrotask(loadBanners);
   }, [loadBanners]);
 
   useEffect(() => {
@@ -304,12 +304,12 @@ export default function BannersPage() {
 
   useEffect(() => {
     if (!imageFile) {
-      setImagePreview("");
+      queueMicrotask(() => setImagePreview(""));
       return;
     }
 
     const objectUrl = URL.createObjectURL(imageFile);
-    setImagePreview(objectUrl);
+    queueMicrotask(() => setImagePreview(objectUrl));
 
     return () => URL.revokeObjectURL(objectUrl);
   }, [imageFile]);

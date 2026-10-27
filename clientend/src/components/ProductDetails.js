@@ -201,13 +201,13 @@ export default function ProductDetails({ product, relatedProducts }) {
     (reviews.length
       ? reviews.reduce((sum, item) => sum + Number(item.rating || 0), 0) /
         reviews.length
-      : 5);
+      : 0);
   const displayCount =
     productRating?.reviewCount ??
     product.reviewCount ??
-    (reviews.length || 1);
+    reviews.length;
   const roundedAverageRating = Number(displayAverage).toFixed(1);
-  const starValue = Math.round(Number(displayAverage) || 5);
+  const starValue = Math.round(Number(displayAverage) || 0);
   const selectedImageUrl = getImageUrl(selectedImage, { width: 1600 });
   const selectedImageLoaded = loadedImageSrc === selectedImageUrl;
 
@@ -303,36 +303,16 @@ export default function ProductDetails({ product, relatedProducts }) {
     setIsSubmittingReview(true);
 
     try {
-      const review = await submitProductReview({
+      await submitProductReview({
         productId: product._id,
         rating: reviewRating,
         comment: reviewComment.trim(),
       });
 
-      if (review) {
-        setReviews((current) => [review, ...current]);
-        setProductRating((current) => {
-          const previousCount = current?.isBaseline
-            ? 0
-            : Number(current?.reviewCount || reviews.length || 0);
-          const nextCount = previousCount + 1;
-          const previousAvg = current?.isBaseline
-            ? 0
-            : Number(current?.averageRating || 0) * previousCount;
-          const nextAvg =
-            Math.round(((previousAvg + Number(review.rating)) / nextCount) * 10) /
-            10;
-          return {
-            averageRating: nextAvg,
-            reviewCount: nextCount,
-            isBaseline: false,
-          };
-        });
-      }
       setReviewRating(0);
       setReviewComment("");
       setShowReviewForm(false);
-      setReviewMessage("Thank you! Your review is live.");
+      setReviewMessage("Thank you! Your review was submitted for moderation.");
       setActiveTab("reviews");
     } catch (error) {
       setReviewMessage(error.message || "Could not submit review");

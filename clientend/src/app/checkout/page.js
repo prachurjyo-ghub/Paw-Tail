@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { HiOutlineShoppingBag } from "react-icons/hi2";
 
 import { useCart } from "@/components/CartProvider";
@@ -49,9 +49,6 @@ const getItemDiscount = (item) => {
 
 const paymentMethods = [
   { value: "COD", label: "Cash on delivery" },
-  { value: "BKASH", label: "bKash" },
-  { value: "NAGAD", label: "Nagad" },
-  { value: "CARD", label: "Card" },
 ];
 
 const emptyShipping = {
@@ -88,6 +85,7 @@ export default function CheckoutPage() {
   const [prefs] = useState(() => readCheckoutPrefs());
   const [summary, setSummary] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState("COD");
+  const checkoutKey = useRef(null);
   const [shipping, setShipping] = useState(emptyShipping);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
@@ -223,6 +221,7 @@ export default function CheckoutPage() {
     setIsSubmitting(true);
 
     try {
+      checkoutKey.current ||= globalThis.crypto.randomUUID();
       const payload = {
         items: cartItems.map((item) => ({
           productId: item.product._id,
@@ -237,6 +236,7 @@ export default function CheckoutPage() {
 
       const response = await apiRequest("/orders/create-order", {
         method: "POST",
+        headers: { "Idempotency-Key": checkoutKey.current },
         body: JSON.stringify(payload),
       });
 

@@ -138,7 +138,7 @@ export default function CategoryListDashboard() {
   }, [apiBaseUrl, showToast]);
 
   useEffect(() => {
-    loadData();
+    queueMicrotask(loadData);
   }, [loadData]);
 
   const filteredAnimals = useMemo(() => {
