@@ -62,7 +62,7 @@ export default function ReviewsPage() {
   }, [q, selectedId, showToast, statusFilter, visibilityFilter]);
 
   useEffect(() => {
-    loadReviews();
+    queueMicrotask(loadReviews);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -22,6 +22,9 @@ async function fetchJson(path, options = {}) {
     credentials: "include",
     ...options,
     headers: {
+      ...(method !== "GET" && method !== "HEAD"
+        ? { "X-PawTail-Request": "1" }
+        : {}),
       ...(options.body !== undefined && !(options.body instanceof FormData)
         ? { "Content-Type": "application/json" }
         : {}),

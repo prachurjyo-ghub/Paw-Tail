@@ -52,7 +52,7 @@ export default function CustomerManagementDashboard() {
   }, [showToast]);
 
   useEffect(() => {
-    loadAccounts();
+    queueMicrotask(loadAccounts);
   }, [loadAccounts]);
 
   const summaryCards = useMemo(

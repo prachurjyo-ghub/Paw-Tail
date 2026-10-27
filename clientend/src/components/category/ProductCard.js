@@ -146,11 +146,11 @@ export default function ProductCard({ product }) {
           </h3>
 
           <div className="text-[12px] font-bold text-[#ee9322]">
-            {"★".repeat(Math.max(1, Math.min(5, Math.round(Number(product.averageRating) || 5))))}
-            <em className="not-italic font-semibold text-[#5d6b65]">
-              {" "}
-              ({Number(product.reviewCount) || 1})
-            </em>
+            {Number(product.reviewCount) > 0 ? (
+              <>{"★".repeat(Math.min(5, Math.round(Number(product.averageRating) || 0)))} <em className="not-italic font-semibold text-[#5d6b65]">({Number(product.reviewCount)})</em></>
+            ) : (
+              <em className="not-italic font-semibold text-[#5d6b65]">No reviews yet</em>
+            )}
           </div>
 
           {displayStock > 0 && displayStock < 10 && (

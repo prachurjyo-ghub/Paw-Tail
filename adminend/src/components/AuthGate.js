@@ -39,7 +39,7 @@ export function AuthGate({ children }) {
 
   // Initial authentication check on mount
   useEffect(() => {
-    refreshAdmin();
+    queueMicrotask(refreshAdmin);
   }, [refreshAdmin]);
 
   // Route protection effect

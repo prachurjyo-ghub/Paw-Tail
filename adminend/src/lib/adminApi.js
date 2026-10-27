@@ -16,6 +16,7 @@ async function requestAdminTokenRefresh() {
 }
 
 async function fetchAdminJson(path, options = {}) {
+  const method = (options.method || "GET").toUpperCase();
   const controller = new AbortController();
   const timeout = globalThis.setTimeout(() => controller.abort(), 10000);
 
@@ -26,6 +27,9 @@ async function fetchAdminJson(path, options = {}) {
       credentials: "include",
       ...options,
       headers: {
+        ...(method !== "GET" && method !== "HEAD"
+          ? { "X-PawTail-Request": "1" }
+          : {}),
         ...(options.body !== undefined && !(options.body instanceof FormData)
           ? { "Content-Type": "application/json" }
           : {}),
