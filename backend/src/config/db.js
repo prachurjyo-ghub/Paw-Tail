@@ -4,6 +4,9 @@ const env = require("./env");
 const logger = require("../utils/logger");
 const { runtimeState } = require("../runtime/state");
 
+mongoose.set("sanitizeFilter", true);
+mongoose.set("strictQuery", true);
+
 let listenersRegistered = false;
 let intentionalShutdown = false;
 
@@ -54,7 +57,12 @@ const connectDB = async () => {
   runtimeState.setMongoState("connecting");
 
   try {
-    await mongoose.connect(env.mongodbUri);
+    await mongoose.connect(env.mongodbUri, {
+      maxPoolSize: 20,
+      minPoolSize: 1,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 20000,
+    });
     await Brand.init();
     runtimeState.setMongoState("connected");
   } catch (error) {

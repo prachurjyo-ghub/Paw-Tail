@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const Review = require("../models/Review");
 
-const BASELINE = { averageRating: 5, reviewCount: 1, isBaseline: true };
+const BASELINE = { averageRating: 0, reviewCount: 0, isBaseline: false };
 
 async function getRatingMapForProductIds(productIds = []) {
   const ids = [...new Set(productIds
@@ -16,6 +16,7 @@ async function getRatingMapForProductIds(productIds = []) {
       $match: {
         product: { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) },
         isHidden: { $ne: true },
+        status: { $in: ["approved", "replied"] },
       },
     },
     {

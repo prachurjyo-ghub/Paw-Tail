@@ -2,7 +2,15 @@ const mongoose = require("mongoose");
 
 const Review = require("../../models/Review");
 const Product = require("../../models/Product");
+const Order = require("../../models/Order");
 const { getProductRating } = require("../../utils/reviewRatings");
+const { invalidateProduct } = require("../../services/productCache");
+const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const invalidateReviewedProduct = async (productId) => {
+  const product = await Product.findById(productId).select("slug").lean();
+  if (product?.slug) await invalidateProduct(product.slug);
+};
 
 const getProductFilter = async (value) => {
   if (!value) return {};
@@ -39,6 +47,7 @@ const getReviews = async (req, res, next) => {
 
     if (!admin) {
       filter.isHidden = { $ne: true };
+      filter.status = { $in: ["approved", "replied"] };
     } else {
       if (req.query.hidden === "true") filter.isHidden = true;
       if (req.query.hidden === "false") filter.isHidden = { $ne: true };
@@ -48,7 +57,7 @@ const getReviews = async (req, res, next) => {
         if (rating >= 1 && rating <= 5) filter.rating = rating;
       }
       if (req.query.q) {
-        const q = String(req.query.q).trim();
+        const q = escapeRegex(String(req.query.q).trim().slice(0, 100));
         if (q) {
           filter.$or = [
             { customerName: { $regex: q, $options: "i" } },
@@ -58,9 +67,13 @@ const getReviews = async (req, res, next) => {
       }
     }
 
-    const reviews = await Review.find(filter)
+    const page = Math.max(1, Math.floor(Number(req.query.page) || 1));
+    const limit = Math.min(50, Math.max(1, Math.floor(Number(req.query.limit) || 20)));
+    const [reviews, total] = await Promise.all([Review.find(filter)
       .populate("product", "name slug price discountPrice")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit), Review.countDocuments(filter)]);
 
     let rating = null;
     if (productFilter.product) {
@@ -72,6 +85,7 @@ const getReviews = async (req, res, next) => {
       message: "Reviews fetched successfully",
       reviews,
       rating,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
     next(error);
@@ -106,6 +120,9 @@ const postReview = async (req, res, next) => {
 
     const trimmedComment =
       typeof comment === "string" ? comment.trim() : "";
+    if (trimmedComment.length > 2000) {
+      return res.status(400).json({ success: false, message: "Review comment is too long" });
+    }
 
     const product = await Product.findOne({ _id: productId, isDeleted: false });
     if (!product) {
@@ -113,6 +130,23 @@ const postReview = async (req, res, next) => {
         success: false,
         message: "Product not found",
       });
+    }
+
+    const purchased = await Order.exists({
+      user: req.user._id,
+      orderStatus: "Delivered",
+      "items.product": product._id,
+    });
+    if (!purchased) {
+      return res.status(403).json({
+        success: false,
+        message: "Only customers with a delivered order can review this product",
+      });
+    }
+
+    const existingReview = await Review.exists({ product: product._id, user: req.user._id });
+    if (existingReview) {
+      return res.status(409).json({ success: false, message: "You have already reviewed this product" });
     }
 
     const review = await Review.create({
@@ -136,7 +170,27 @@ const postReview = async (req, res, next) => {
       review: populated,
     });
   } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({ success: false, message: "You have already reviewed this product" });
+    }
     next(error);
+  }
+};
+
+const approveReview = async (req, res, next) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: "Valid review id is required" });
+    }
+    const review = await Review.findById(req.params.id);
+    if (!review) return res.status(404).json({ success: false, message: "Review not found" });
+    review.status = review.reply ? "replied" : "approved";
+    review.isHidden = false;
+    await review.save();
+    await invalidateReviewedProduct(review.product);
+    return res.status(200).json({ success: true, message: "Review approved", review });
+  } catch (error) {
+    return next(error);
   }
 };
 
@@ -163,6 +217,7 @@ const replyReview = async (req, res, next) => {
     review.reply = typeof reply === "string" ? reply.trim() : "";
     review.status = review.reply ? "replied" : "pending";
     await review.save();
+    await invalidateReviewedProduct(review.product);
 
     const populated = await Review.findById(review._id).populate(
       "product",
@@ -201,6 +256,7 @@ const hideReview = async (req, res, next) => {
 
     review.isHidden = Boolean(hidden);
     await review.save();
+    await invalidateReviewedProduct(review.product);
 
     const populated = await Review.findById(review._id).populate(
       "product",
@@ -235,6 +291,7 @@ const deleteReview = async (req, res, next) => {
         message: "Review not found",
       });
     }
+    await invalidateReviewedProduct(review.product);
 
     return res.status(200).json({
       success: true,
@@ -248,6 +305,7 @@ const deleteReview = async (req, res, next) => {
 module.exports = {
   getReviews,
   postReview,
+  approveReview,
   replyReview,
   hideReview,
   deleteReview,

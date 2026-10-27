@@ -36,6 +36,35 @@ const readPort = (name, { required = false, fallback } = {}) => {
   return value;
 };
 
+const readInteger = (name, { fallback, min = 0, max = Number.MAX_SAFE_INTEGER } = {}) => {
+  const rawValue = readString(name, { fallback: String(fallback) });
+  const value = Number(rawValue);
+
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new Error(`${name} must be an integer between ${min} and ${max}`);
+  }
+
+  return value;
+};
+
+const readRedisUrl = ({ required = false } = {}) => {
+  const value = readString("REDIS_URL", { required });
+  if (!value) return undefined;
+
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("REDIS_URL must be a valid URL");
+  }
+
+  if (!["redis:", "rediss:"].includes(parsed.protocol)) {
+    throw new Error("REDIS_URL must use redis:// or rediss://");
+  }
+
+  return value;
+};
+
 const readDuration = (name, { required = false, fallback } = {}) => {
   const value = readString(name, { required, fallback });
 
@@ -260,6 +289,22 @@ const loadEnv = () => {
     cloudinaryApiKey,
     cloudinaryApiSecret,
     cloudinaryFolderPrefix,
+    redisUrl: readRedisUrl({ required: isProduction }),
+    productCacheTtlSeconds: readInteger("PRODUCT_CACHE_TTL_SECONDS", {
+      fallback: 60,
+      min: 5,
+      max: 3600,
+    }),
+    productNotFoundTtlSeconds: readInteger("PRODUCT_NOT_FOUND_TTL_SECONDS", {
+      fallback: 20,
+      min: 5,
+      max: 300,
+    }),
+    trustProxyHops: readInteger("TRUST_PROXY_HOPS", {
+      fallback: isProduction ? 1 : 0,
+      min: 0,
+      max: 3,
+    }),
   };
 
   return Object.freeze(env);

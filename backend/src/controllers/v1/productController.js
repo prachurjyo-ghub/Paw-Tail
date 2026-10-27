@@ -13,6 +13,14 @@ const {
   isSameMedia,
   selectOwnedMedia,
 } = require("../../utils/media");
+const {
+  NOT_FOUND,
+  coalesce,
+  invalidateProduct,
+  readProductCache,
+  writeNotFound,
+  writeProductCache,
+} = require("../../services/productCache");
 
 const parseBoolean = (value) => {
   if (typeof value === "boolean") return value;
@@ -224,9 +232,9 @@ const getProducts = async (req, res, next) => {
     }
 
     const activeFilter = parseBoolean(isActive);
-    if (typeof activeFilter === "boolean") {
-      query.isActive = activeFilter;
-    }
+    query.isActive = req.user?.role === "admin" && typeof activeFilter === "boolean"
+      ? activeFilter
+      : true;
 
     const offerFilter = parseBoolean(isOfferEnabled);
     if (typeof offerFilter === "boolean") {
@@ -301,7 +309,7 @@ const getDeletedProducts = async (req, res, next) => {
     };
 
     if (search) {
-      query.name = { $regex: search.trim(), $options: "i" };
+      query.name = { $regex: escapeRegex(String(search).trim().slice(0, 100)), $options: "i" };
     }
 
     let sortOption = { deletedAt: -1, createdAt: -1 };
@@ -344,54 +352,60 @@ const getDeletedProducts = async (req, res, next) => {
 
 const getSingleProduct = async (req, res, next) => {
   try {
-    const { slug } = req.params;
+    const slug = String(req.params.slug || "").trim().toLowerCase();
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 180) {
+      return res.status(400).json({ success: false, message: "Invalid product slug" });
+    }
 
-    const includeInactive = ["1", "true", "yes"].includes(
+    const includeInactive = req.user?.role === "admin" && ["1", "true", "yes"].includes(
       String(req.query.includeInactive || "").toLowerCase()
     );
 
-    const product = await Product.findOne({
-      slug,
-      isDeleted: false,
-      ...(includeInactive ? {} : { isActive: true }),
-    })
-      .populate("category", "name slug")
-      .populate("animal", "name slug")
-      .populate("brand", "name slug");
-
-    if (!product) {
+    const scope = includeInactive ? "admin" : "public";
+    const cached = await readProductCache(slug, scope);
+    if (cached === NOT_FOUND) {
       return res.status(404).json({
         success: false,
         message: "Product not found",
       });
     }
+    if (cached) return res.status(200).json(cached);
 
-    const relatedProductsRaw = await Product.find({
-      _id: { $ne: product._id },
-      category: product.category?._id || product.category,
-      isDeleted: false,
-      isActive: true,
-    })
-      .select("name slug images price discountPrice isOutOfStock")
-      .sort({ createdAt: -1 })
-      .limit(4);
-
-    const { attachRatingsToProducts, getProductRating } = require("../../utils/reviewRatings");
-    const rating = await getProductRating(product._id);
-    const relatedProducts = await attachRatingsToProducts(relatedProductsRaw);
-    const productWithRating = {
-      ...(product.toObject ? product.toObject() : product),
-      averageRating: rating.averageRating,
-      reviewCount: rating.reviewCount,
-      isBaselineRating: rating.isBaseline,
-    };
-
-    return res.status(200).json({
-      success: true,
-      message: "Product fetched successfully",
-      product: productWithRating,
-      relatedProducts,
+    const payload = await coalesce(`${scope}:${slug}`, async () => {
+      const product = await Product.findOne({
+        slug,
+        isDeleted: false,
+        ...(includeInactive ? {} : { isActive: true }),
+      })
+        .populate("category", "name slug")
+        .populate("animal", "name slug")
+        .populate("brand", "name slug");
+      if (!product) {
+        if (!includeInactive) await writeNotFound(slug);
+        return NOT_FOUND;
+      }
+      const relatedProductsRaw = await Product.find({
+        _id: { $ne: product._id }, category: product.category?._id || product.category,
+        isDeleted: false, isActive: true,
+      }).select("name slug images price discountPrice isOutOfStock").sort({ createdAt: -1 }).limit(4);
+      const { attachRatingsToProducts, getProductRating } = require("../../utils/reviewRatings");
+      const [rating, relatedProducts] = await Promise.all([
+        getProductRating(product._id), attachRatingsToProducts(relatedProductsRaw),
+      ]);
+      const result = {
+        success: true,
+        message: "Product fetched successfully",
+        product: { ...product.toObject(), averageRating: rating.averageRating, reviewCount: rating.reviewCount, isBaselineRating: rating.isBaseline },
+        relatedProducts,
+      };
+      await writeProductCache(slug, scope, result);
+      return result;
     });
+    if (payload === NOT_FOUND) {
+      return res.status(404).json({ success: false, message: "Product not found" });
+    }
+
+    return res.status(200).json(payload);
   } catch (error) {
     next(error);
   }
@@ -520,6 +534,7 @@ const createProduct = async (req, res, next) => {
     uploadedImages = creation.uploaded;
     const product = creation.value;
     databaseSaved = true;
+    await invalidateProduct(product.slug);
 
     const populatedProduct = await Product.findById(product._id)
       .populate("category", "name slug")
@@ -744,6 +759,7 @@ const updateProduct = async (req, res, next) => {
 
     await product.save();
     databaseSaved = true;
+    await invalidateProduct(slug, product.slug);
 
     await cleanupOldMedia(removedImages, {
       legacyFolder: "products",
@@ -796,6 +812,7 @@ const deleteProduct = async (req, res, next) => {
     product.deletedBy = req.user?._id || null;
     product.isActive = false;
     await product.save();
+    await invalidateProduct(slug, product.slug);
 
     return res.status(200).json({
       success: true,

@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const Order = require("../../models/Order");
+const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const toInvoiceNumber = (orderNumber) => `INV-${orderNumber}`;
 
@@ -49,7 +50,7 @@ const getInvoices = async (req, res, next) => {
     const filter = { paymentStatus: "Paid" };
 
     if (req.query.q) {
-      const q = String(req.query.q).trim();
+      const q = escapeRegex(String(req.query.q).trim().slice(0, 100));
       if (q) {
         filter.$or = [
           { orderNumber: { $regex: q, $options: "i" } },
@@ -66,17 +67,27 @@ const getInvoices = async (req, res, next) => {
       filter.orderStatus = req.query.orderStatus;
     }
 
-    const orders = await Order.find(filter).sort({ createdAt: -1 });
+    const page = Math.max(1, Math.floor(Number(req.query.page) || 1));
+    const limit = Math.min(100, Math.max(1, Math.floor(Number(req.query.limit) || 25)));
+    const [orders, totals] = await Promise.all([
+      Order.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
+      Order.aggregate([
+        { $match: filter },
+        { $group: { _id: null, total: { $sum: 1 }, revenue: { $sum: "$grandTotal" } } },
+      ]),
+    ]);
     const invoices = orders.map(mapInvoiceSummary);
+    const total = totals[0]?.total || 0;
 
     return res.status(200).json({
       success: true,
       message: "Invoices fetched successfully",
       invoices,
       summary: {
-        total: invoices.length,
-        revenue: invoices.reduce((sum, inv) => sum + (Number(inv.grandTotal) || 0), 0),
+        total,
+        revenue: totals[0]?.revenue || 0,
       },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {
     next(error);

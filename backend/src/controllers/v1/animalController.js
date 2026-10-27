@@ -62,7 +62,7 @@ const isInvalidAnimalId = (id, res) => {
 
 const getAnimals = async (req, res, next) => {
   try {
-    const includeInactive = ["1", "true", "yes"].includes(
+    const includeInactive = req.user?.role === "admin" && ["1", "true", "yes"].includes(
       String(req.query.includeInactive || "").toLowerCase()
     );
     const filter = includeInactive ? {} : { isActive: true };

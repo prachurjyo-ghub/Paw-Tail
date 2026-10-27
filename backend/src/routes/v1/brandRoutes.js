@@ -1,8 +1,9 @@
 const express = require("express");
 const router = express.Router();
 
-const { protect, adminOnly } = require("../../middleware/auth.middleware.js");
+const { protect, adminOnly, optionalAuth } = require("../../middleware/auth.middleware.js");
 const { createImageUpload } = require("../../utils/upload.js");
+const { policies } = require("../../middleware/rateLimit.middleware.js");
 const {
   getBrands,
   createBrand,
@@ -16,11 +17,12 @@ const brandImageUpload = createImageUpload({
   maxSizeKB: 4096,
 });
 
-router.get("/get-brands", getBrands);
+router.get("/get-brands", policies.browsing, optionalAuth, getBrands);
 router.post(
   "/create-brand",
   protect,
   adminOnly,
+  policies.upload,
   brandImageUpload.single("image"),
   createBrand
 );
@@ -28,10 +30,11 @@ router.patch(
   "/update-brand/:slug",
   protect,
   adminOnly,
+  policies.upload,
   brandImageUpload.single("image"),
   updateBrandBySlug
 );
-router.delete("/delete-brand/:slug", protect, adminOnly, deleteBrandBySlug);
-router.patch("/active-on-off-brand/:slug", protect, adminOnly, toggleBrandActiveBySlug);
+router.delete("/delete-brand/:slug", protect, adminOnly, policies.admin, deleteBrandBySlug);
+router.patch("/active-on-off-brand/:slug", protect, adminOnly, policies.admin, toggleBrandActiveBySlug);
 
 module.exports = router;

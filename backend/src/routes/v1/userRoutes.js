@@ -27,25 +27,26 @@ const {
   getAccountDetails,
 } = require("../../controllers/v1/authController.js");
 const { admin } = require("../../middleware/auth.middleware.js");
+const { policies } = require("../../middleware/rateLimit.middleware.js");
 
 const userImageUpload = createImageUpload({ folder: "users", maxSizeKB: 2048 });
 
 
-router.post("/signup", signup);
-router.post("/login", login);
-router.post("/admin-login", adminLogin);
-router.post("/verify-email", verifyEmail);
-router.post("/refresh-token", refreshToken);
-router.post("/forgot-password", forgotPassword);
-router.post("/verify-reset-otp", verifyResetOtp);
-router.post("/reset-password", resetPassword);
-router.get("/accounts", protect, admin, getAccounts);
-router.get("/accounts/:id", protect, admin, getAccountDetails);
-router.post("/request-update-otp", protect, requestUpdateOtp);
+router.post("/signup", policies.registration, signup);
+router.post("/login", policies.auth, login);
+router.post("/admin-login", policies.auth, adminLogin);
+router.post("/verify-email", policies.verification, verifyEmail);
+router.post("/refresh-token", policies.refresh, refreshToken);
+router.post("/forgot-password", policies.recovery, forgotPassword);
+router.post("/verify-reset-otp", policies.verification, verifyResetOtp);
+router.post("/reset-password", policies.recovery, resetPassword);
+router.get("/accounts", protect, admin, policies.admin, getAccounts);
+router.get("/accounts/:id", protect, admin, policies.admin, getAccountDetails);
+router.post("/request-update-otp", protect, policies.recovery, requestUpdateOtp);
 router.patch("/profile", protect, updateProfile);
 router.patch("/update-phone", protect, updatePhone);
 router.patch("/change-password", protect, changePassword);
-router.patch("/profile-image",protect,userImageUpload.single("image"),uploadProfileImage);
+router.patch("/profile-image",protect,policies.upload,userImageUpload.single("image"),uploadProfileImage);
 router.post("/addresses", protect, addAddress);
 router.patch("/addresses/:addressId", protect, updateAddress);
 router.patch("/addresses/:addressId/default", protect, setDefaultAddress);

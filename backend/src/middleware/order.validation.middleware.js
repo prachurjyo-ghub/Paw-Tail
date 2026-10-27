@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
-const PAYMENT_METHODS = ["COD", "BKASH", "NAGAD", "CARD", "SSL_COMMERZ"];
+// Online methods stay disabled until a signed provider flow and webhook reconciliation exist.
+const PAYMENT_METHODS = ["COD"];
 const PAYMENT_STATUSES = [
   "Pending",
   "Paid",
@@ -312,6 +313,10 @@ const validateOrderIdentifier = (req, res, next) => {
 };
 
 const validateCreateOrder = (req, res, next) => {
+  const idempotencyKey = req.get("idempotency-key");
+  if (!idempotencyKey || !/^[A-Za-z0-9._:-]{16,128}$/.test(idempotencyKey)) {
+    return fail(res, "A valid Idempotency-Key header is required");
+  }
   if (!isPlainObject(req.body)) {
     return fail(res, "Request body must be an object");
   }
@@ -364,6 +369,7 @@ const validateCreateOrder = (req, res, next) => {
     deliveryZone,
     ...(isProvided(cleanPromoCode.value) ? { promoCode: cleanPromoCode.value } : {}),
   };
+  req.idempotencyKey = idempotencyKey;
 
   next();
 };
