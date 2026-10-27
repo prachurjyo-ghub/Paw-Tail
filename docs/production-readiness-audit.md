@@ -132,6 +132,8 @@ Runtime used for final local gates: Node `v22.23.2`, npm `11.16.0`.
 - Admin: ESLint passed; Next.js 16.4.3 webpack production build passed (30 routes generated).
 - Production dependency audits: backend, storefront and admin each report 0 vulnerabilities.
 - Repository: `git diff --check` passed; tracked secret/key scan found only `.env.example` files.
+- GitHub Actions run `40545564251`: backend, storefront and admin matrix jobs passed.
+- Vercel pull-request previews: storefront and admin deployments reached Ready; direct anonymous smoke requests returned the expected deployment-protection redirect (302).
 - Safe production reads: storefront 200; API live 200; API ready 200; product list 200 with bounded `limit=1` response.
 - Not run: destructive stress, real emails/uploads/orders/refunds, production writes, Mongo concurrency tests, Redis integration, browser E2E, accessibility automation, restore drill, or migration execution.
 
@@ -157,7 +159,7 @@ Rollback: use the provider’s immutable previous deployment/revision; do not re
 - GitHub access: authenticated with admin permission.
 - Vercel access: authenticated; both current production deployments report Ready.
 - Code commits: `342ad80` (backend hardening) and `9fd1563` (frontend security/dependency gates). Audit/CI are recorded in the documentation commit.
-- Push/PR: the feature branch is the only authorized push target for this audit; no PR merge is approved while blockers remain.
+- Push/PR: branch pushed to `pawtail/production-hardening-2026-10-27`; draft PR #2 is open. GitHub CI and both Vercel preview checks passed. No PR merge is approved while blockers remain.
 - Merge/deployment: intentionally not performed because P1 release gates remain blocked.
 
 ## Readiness score
